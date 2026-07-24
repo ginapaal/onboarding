@@ -369,6 +369,39 @@ deserialization, otherwise signature verification fails.
 
 ---
 
+## Security
+
+### Current posture
+
+All onboarding endpoints are intentionally public in this slice. This is by design, not an
+oversight: the user has no prior identity when they arrive — they are registering for the first
+time. There is nothing to authenticate against.
+
+| Endpoint | Auth | Reason |
+|---|---|---|
+| `POST /api/onboarding/register` | None | User does not exist yet |
+| `POST /api/onboarding/{sessionId}/payment` | None (sessionId is unguessable) | No identity established yet |
+| `GET /api/onboarding/{sessionId}/status` | None (sessionId is unguessable) | Same |
+| `POST /webhooks/stripe` | Stripe signature verification | Handled by `Stripe-Signature` header, not user auth |
+
+The `sessionId` is a UUID v4, which provides implicit protection against enumeration — but it
+is not a substitute for real authentication.
+
+### When the auth slice is implemented
+
+Once identity is a first-class concern, the following endpoints must be protected:
+
+- `POST /api/onboarding/{sessionId}/payment` — should require a bearer token proving the caller
+  is the admin who initiated this registration
+- `GET /api/onboarding/{sessionId}/status` — same
+
+The recommended approach is a JWT issued by a dedicated identity service (or Auth0/Okta) once
+the admin's email is verified after registration. Spring Security's OAuth2 resource server can
+validate it with minimal config. Auth belongs to a separate bounded context and should not be
+owned by the onboarding service.
+
+---
+
 ## Scope Decisions
 
 ### Built
@@ -386,7 +419,7 @@ deserialization, otherwise signature verification fails.
 | Omission | Reason | What production would need |
 |---|---|---|
 | Frontend / Stripe.js | Out of scope for backend slice | React or plain JS with `@stripe/stripe-js` confirming the PaymentIntent |
-| Auth / JWT | Not the focus of this slice | Spring Security + JWT or Auth0 |
+| Auth / JWT | Onboarding is a pre-auth flow; no identity exists yet. See Security section. | JWT issued by a dedicated identity service; Spring Security OAuth2 resource server to validate on payment and status endpoints |
 | Transactional Outbox | Added complexity for marginal gain in demo context | Debezium or a scheduled poller on `outbox_events` |
 | Email notifications | Infrastructure concern, not domain | Spring Mail or SendGrid on `CompanyActivated` event |
 | Rate limiting | Ops concern | Bucket4j or API gateway |
