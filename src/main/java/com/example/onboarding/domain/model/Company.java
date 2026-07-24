@@ -16,9 +16,14 @@ public class Company {
     private final ContactInfo adminContact;
     private CompanyStatus status;
     private int retryCount;
+    private CustomerReference stripeCustomerReference;
 
     public static Company register(CompanyId id, String companyName, ContactInfo adminContact) {
-        return new Company(id, companyName, adminContact, CompanyStatus.INCOMPLETE, 0);
+        return new Company(id, companyName, adminContact, CompanyStatus.INCOMPLETE, 0, null);
+    }
+
+    public void assignStripeCustomer(CustomerReference customerReference) {
+        this.stripeCustomerReference = customerReference;
     }
 
     public void initiatePayment() {

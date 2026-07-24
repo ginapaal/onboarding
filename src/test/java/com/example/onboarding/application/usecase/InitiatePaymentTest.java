@@ -30,6 +30,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -70,13 +71,13 @@ class InitiatePaymentTest {
         when(companyRepository.findById(companyId)).thenReturn(Optional.of(company));
         when(pricingRepository.findByCountryCode("GB")).thenReturn(Optional.of(gbpPrice));
         when(paymentGateway.createCustomer(any(), any())).thenReturn(customer);
-        when(paymentGateway.createPaymentIntent(customer, gbpPrice)).thenReturn(paymentIntent);
+        when(paymentGateway.createPaymentIntent(customer, gbpPrice, sessionId)).thenReturn(paymentIntent);
 
         InitiatePaymentResult result = initiatePayment.execute(sessionId, "GB");
 
         assertThat(result.clientSecret()).isEqualTo("pi_test123_secret");
         assertThat(result.pricingWarning()).isNull();
-        verify(paymentGateway).createPaymentIntent(customer, gbpPrice);
+        verify(paymentGateway).createPaymentIntent(customer, gbpPrice, sessionId);
     }
 
     @Test
@@ -86,12 +87,12 @@ class InitiatePaymentTest {
         when(pricingRepository.findByCountryCode("JP")).thenReturn(Optional.empty());
         when(pricingRepository.findByCountryCode("US")).thenReturn(Optional.of(usdPrice));
         when(paymentGateway.createCustomer(any(), any())).thenReturn(customer);
-        when(paymentGateway.createPaymentIntent(customer, usdPrice)).thenReturn(paymentIntent);
+        when(paymentGateway.createPaymentIntent(customer, usdPrice, sessionId)).thenReturn(paymentIntent);
 
         InitiatePaymentResult result = initiatePayment.execute(sessionId, "JP");
 
         assertThat(result.pricingWarning()).isEqualTo("Could not determine pricing for your region. Defaulting to USD.");
-        verify(paymentGateway).createPaymentIntent(customer, usdPrice);
+        verify(paymentGateway).createPaymentIntent(customer, usdPrice, sessionId);
     }
 
     @Test
@@ -129,7 +130,7 @@ class InitiatePaymentTest {
         when(companyRepository.findById(companyId)).thenReturn(Optional.of(company));
         when(pricingRepository.findByCountryCode("US")).thenReturn(Optional.of(usdPrice));
         when(paymentGateway.createCustomer(any(), any())).thenReturn(customer);
-        when(paymentGateway.createPaymentIntent(any(), any())).thenReturn(paymentIntent);
+        when(paymentGateway.createPaymentIntent(any(), any(), any())).thenReturn(paymentIntent);
 
         initiatePayment.execute(sessionId, "US");
 
@@ -138,5 +139,19 @@ class InitiatePaymentTest {
         assertThat(session.getClientSecret()).isEqualTo("pi_test123_secret");
         verify(sessionRepository).update(session);
         verify(companyRepository).update(company);
+    }
+
+    @Test
+    void execute_whenCompanyAlreadyHasStripeCustomer_skipsCreateCustomer() {
+        company.assignStripeCustomer(customer);
+        when(sessionRepository.findById(sessionId)).thenReturn(Optional.of(session));
+        when(companyRepository.findById(companyId)).thenReturn(Optional.of(company));
+        when(pricingRepository.findByCountryCode("US")).thenReturn(Optional.of(usdPrice));
+        when(paymentGateway.createPaymentIntent(customer, usdPrice, sessionId)).thenReturn(paymentIntent);
+
+        initiatePayment.execute(sessionId, "US");
+
+        verify(paymentGateway, never()).createCustomer(any(), any());
+        verify(paymentGateway).createPaymentIntent(customer, usdPrice, sessionId);
     }
 }

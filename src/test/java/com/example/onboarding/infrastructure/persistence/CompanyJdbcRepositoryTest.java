@@ -4,6 +4,7 @@ import com.example.onboarding.domain.model.Company;
 import com.example.onboarding.domain.model.CompanyId;
 import com.example.onboarding.domain.model.CompanyStatus;
 import com.example.onboarding.domain.model.ContactInfo;
+import com.example.onboarding.domain.model.CustomerReference;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration;
@@ -92,5 +93,22 @@ class CompanyJdbcRepositoryTest {
         assertThat(found).isPresent();
         assertThat(found.get().getStatus()).isEqualTo(CompanyStatus.PENDING_ACTIVATION);
         assertThat(found.get().getRetryCount()).isEqualTo(1);
+    }
+
+    @Test
+    void update_persistsStripeCustomerReference() {
+        Company company = Company.register(
+                CompanyId.generate(),
+                "Acme Corp",
+                new ContactInfo("admin@acme.com", "Jane", "Doe")
+        );
+        repository.insert(company);
+
+        company.assignStripeCustomer(new CustomerReference("cus_abc123"));
+        repository.update(company);
+
+        Optional<Company> found = repository.findById(company.getId());
+        assertThat(found).isPresent();
+        assertThat(found.get().getStripeCustomerReference()).isEqualTo(new CustomerReference("cus_abc123"));
     }
 }

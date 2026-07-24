@@ -4,6 +4,7 @@ import com.example.onboarding.domain.model.Company;
 import com.example.onboarding.domain.model.CompanyId;
 import com.example.onboarding.domain.model.CompanyStatus;
 import com.example.onboarding.domain.model.ContactInfo;
+import com.example.onboarding.domain.model.CustomerReference;
 import com.example.onboarding.domain.port.outbound.CompanyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.RowMapper;
@@ -21,18 +22,18 @@ public class CompanyJdbcRepository implements CompanyRepository {
     private final NamedParameterJdbcTemplate jdbc;
 
     private static final String INSERT = """
-            INSERT INTO companies (company_id, company_name, admin_email, admin_first_name, admin_last_name, status, retry_count)
-            VALUES (:companyId, :companyName, :adminEmail, :adminFirstName, :adminLastName, :status, :retryCount)
+            INSERT INTO companies (company_id, company_name, admin_email, admin_first_name, admin_last_name, status, retry_count, stripe_customer_id)
+            VALUES (:companyId, :companyName, :adminEmail, :adminFirstName, :adminLastName, :status, :retryCount, :stripeCustomerId)
             """;
 
     private static final String UPDATE = """
             UPDATE companies
-            SET status = :status, retry_count = :retryCount
+            SET status = :status, retry_count = :retryCount, stripe_customer_id = :stripeCustomerId
             WHERE company_id = :companyId
             """;
 
     private static final String FIND_BY_ID = """
-            SELECT company_id, company_name, admin_email, admin_first_name, admin_last_name, status, retry_count
+            SELECT company_id, company_name, admin_email, admin_first_name, admin_last_name, status, retry_count, stripe_customer_id
             FROM companies
             WHERE company_id = :companyId
             """;
@@ -46,7 +47,8 @@ public class CompanyJdbcRepository implements CompanyRepository {
                 .addValue("adminFirstName", company.getAdminContact().firstName())
                 .addValue("adminLastName", company.getAdminContact().lastName())
                 .addValue("status", company.getStatus().name())
-                .addValue("retryCount", company.getRetryCount()));
+                .addValue("retryCount", company.getRetryCount())
+                .addValue("stripeCustomerId", stripeCustomerId(company)));
     }
 
     @Override
@@ -54,7 +56,14 @@ public class CompanyJdbcRepository implements CompanyRepository {
         jdbc.update(UPDATE, new MapSqlParameterSource()
                 .addValue("companyId", company.getId().value())
                 .addValue("status", company.getStatus().name())
-                .addValue("retryCount", company.getRetryCount()));
+                .addValue("retryCount", company.getRetryCount())
+                .addValue("stripeCustomerId", stripeCustomerId(company)));
+    }
+
+    private static String stripeCustomerId(Company company) {
+        return company.getStripeCustomerReference() != null
+                ? company.getStripeCustomerReference().value()
+                : null;
     }
 
     @Override
@@ -65,15 +74,19 @@ public class CompanyJdbcRepository implements CompanyRepository {
                 .stream().findFirst();
     }
 
-    private static final RowMapper<Company> COMPANY_ROW_MAPPER = (rs, rowNum) -> new Company(
-            new CompanyId(rs.getObject("company_id", UUID.class)),
-            rs.getString("company_name"),
-            new ContactInfo(
-                    rs.getString("admin_email"),
-                    rs.getString("admin_first_name"),
-                    rs.getString("admin_last_name")
-            ),
-            CompanyStatus.valueOf(rs.getString("status")),
-            rs.getInt("retry_count")
-    );
+    private static final RowMapper<Company> COMPANY_ROW_MAPPER = (rs, rowNum) -> {
+        String stripeCustomerId = rs.getString("stripe_customer_id");
+        return new Company(
+                new CompanyId(rs.getObject("company_id", UUID.class)),
+                rs.getString("company_name"),
+                new ContactInfo(
+                        rs.getString("admin_email"),
+                        rs.getString("admin_first_name"),
+                        rs.getString("admin_last_name")
+                ),
+                CompanyStatus.valueOf(rs.getString("status")),
+                rs.getInt("retry_count"),
+                stripeCustomerId != null ? new CustomerReference(stripeCustomerId) : null
+        );
+    };
 }

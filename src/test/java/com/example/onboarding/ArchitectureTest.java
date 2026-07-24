@@ -19,7 +19,7 @@ class ArchitectureTest {
     ArchRule use_cases_should_only_expose_execute =
             methods().that().areDeclaredInClassesThat()
                     .resideInAPackage("..application.usecase..")
-                    .and().areAnnotatedWith(Service.class)
+                    .and().areDeclaredInClassesThat().areAnnotatedWith(Service.class)
                     .and().arePublic()
                     .should().haveName("execute");
 

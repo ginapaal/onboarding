@@ -3,7 +3,6 @@ package com.example.onboarding.application.usecase;
 import com.example.onboarding.domain.exception.CompanyNotFoundException;
 import com.example.onboarding.domain.exception.SessionNotFoundException;
 import com.example.onboarding.domain.model.Company;
-import com.example.onboarding.domain.model.CustomerReference;
 import com.example.onboarding.domain.model.Money;
 import com.example.onboarding.domain.model.OnboardingSession;
 import com.example.onboarding.domain.model.PaymentIntentResult;
@@ -48,8 +47,9 @@ public class InitiatePayment implements InitiatePaymentUseCase {
                 .orElseThrow(() -> new IllegalStateException("US pricing not configured"));
         String pricingWarning = regionPrice.isEmpty() ? FALLBACK_WARNING : null;
 
-        CustomerReference customer = paymentGateway.createCustomer(company.getAdminContact(), company.getId());
-        PaymentIntentResult paymentIntent = paymentGateway.createPaymentIntent(customer, price);
+        ensureStripeCustomerExists(company);
+        PaymentIntentResult paymentIntent = paymentGateway.createPaymentIntent(
+                company.getStripeCustomerReference(), price, sessionId);
 
         session.recordPaymentIntent(paymentIntent.id(), paymentIntent.clientSecret());
         company.initiatePayment();
@@ -58,5 +58,11 @@ public class InitiatePayment implements InitiatePaymentUseCase {
         companyRepository.update(company);
 
         return new InitiatePaymentResult(paymentIntent.clientSecret(), pricingWarning);
+    }
+
+    private void ensureStripeCustomerExists(Company company) {
+        if (company.getStripeCustomerReference() == null) {
+            company.assignStripeCustomer(paymentGateway.createCustomer(company.getAdminContact(), company.getId()));
+        }
     }
 }
