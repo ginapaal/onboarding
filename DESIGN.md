@@ -82,6 +82,83 @@ This matters concretely for this project in three ways:
   «driven ports»:  repository/gateway interfaces the use cases call out through
 ```
 
+### Ports explained
+
+A port is just a Java interface. The critical rule is **who writes it and who implements it**.
+
+#### Driven ports — defined inside the core, implemented outside
+
+The domain declares what it needs. Infrastructure delivers it.
+
+```
+domain/port/CompanyRepository.java          ← interface, lives in the core
+infrastructure/persistence/
+    CompanyRepositoryJdbc.java              ← implements CompanyRepository, lives in infra
+```
+
+```java
+// domain/port/CompanyRepository.java
+// Pure Java. No Spring, no SQL, no database concept.
+public interface CompanyRepository {
+    void save(Company company);
+    Optional<Company> findById(CompanyId id);
+}
+
+// infrastructure/persistence/CompanyRepositoryJdbc.java
+// All the database detail lives here, invisible to the domain.
+public class CompanyRepositoryJdbc implements CompanyRepository {
+    private final NamedParameterJdbcTemplate jdbc;
+
+    @Override
+    public void save(Company company) { /* SQL here */ }
+
+    @Override
+    public Optional<Company> findById(CompanyId id) { /* SQL here */ }
+}
+```
+
+Same pattern for `PaymentGateway`:
+
+```java
+// domain/port/PaymentGateway.java  ← the domain's requirement, in plain Java
+public interface PaymentGateway {
+    CustomerReference createCustomer(ContactInfo contact, CompanyId companyId);
+    PaymentIntent createPaymentIntent(CustomerReference customer, Money amount);
+}
+
+// infrastructure/stripe/StripePaymentGateway.java  ← Stripe SDK confined here
+public class StripePaymentGateway implements PaymentGateway { ... }
+```
+
+The consequence is the dependency arrow always points **inward**:
+
+```
+infrastructure/CompanyRepositoryJdbc   →   domain/port/CompanyRepository
+infrastructure/StripePaymentGateway    →   domain/port/PaymentGateway
+```
+
+If you deleted every file in `infrastructure/`, the domain and application layers
+would still compile. Infrastructure needs the domain; the domain needs nothing.
+
+#### Driving ports — called from outside, implemented inside the core
+
+The controllers (adapters on the driving side) call into use cases. The use cases are
+the driving port. Controllers depend on them; the use cases do not know controllers exist.
+
+```java
+// application/usecase/RegisterCompanyUseCase.java
+public class RegisterCompanyUseCase {
+    public RegisterResult execute(RegisterCommand command) { ... }
+}
+
+// infrastructure/web/OnboardingController.java
+// The controller depends on the use case — never the other way around.
+public class OnboardingController {
+    private final RegisterCompanyUseCase registerCompany;
+    ...
+}
+```
+
 ### Package layout
 
 ```
@@ -94,7 +171,7 @@ com.example.onboarding
 │   └── usecase        (RegisterCompanyUseCase, InitiatePaymentUseCase,
 │                        HandlePaymentEventUseCase)
 └── infrastructure
-    ├── persistence    (JPA entities, Spring Data repos, domain↔JPA mappers)
+    ├── persistence    (JDBC adapters, domain↔row mappers)
     ├── stripe         (StripePaymentGateway, StripeWebhookVerifier)
     └── web            (OnboardingController, WebhookController, request/response DTOs)
 ```
