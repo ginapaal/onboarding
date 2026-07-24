@@ -26,7 +26,7 @@ over time: services accumulate Stripe SDK calls, JPA annotations creep into doma
 tests become hard to write without a full Spring context. The core problem is that the domain
 *depends on* infrastructure, when it should be the other way around.
 
-Hexagonal architecture (also called Ports & Adapters, coined by Alistair Cockburn) inverts this.
+Hexagonal architecture (also called Ports & Adapters) inverts this.
 The domain sits at the centre and defines *interfaces* (ports) for everything it needs. The
 outside world — HTTP, Stripe, the database — provides *implementations* (adapters) that plug
 into those ports. Nothing in the domain or application layer imports a framework class or an
@@ -47,40 +47,82 @@ This matters concretely for this project in three ways:
 
 ### Diagram
 
-```
-  DRIVING SIDE                                              DRIVEN SIDE
-  (they call us)                                            (we call them)
+```mermaid
+flowchart LR
+    subgraph drivingSide["DRIVING SIDE"]
+        RestClient["REST Client /<br>Browser"]
+        OnboardingCtrl["Onboarding<br>Controller<br>(adapter)"]
+        WebhookCtrl["Webhook<br>Controller<br>(adapter)"]
+        StripeWebhook["Stripe<br>(webhook POST)"]
+    end
 
-  ┌─────────────────┐                                    ┌─────────────────┐
-  │  REST Client /  │                                    │   PostgreSQL    │
-  │  Browser        │                                    └────────▲────────┘
-  └────────┬────────┘                                             │
-           │                                                      │ implements
-           │ calls                                                │
-           ▼                                       ┌─────────────┴──────────┐
-  ┌─────────────────┐    ┌──────────────────────────────────────────────────────┐
-  │  Onboarding     │    │                   APPLICATION CORE                   │
-  │  Controller     ├───►│  ┌──────────────────────────────────────────────┐   │
-  │  (adapter)      │    │  │              Application Layer                │   │
-  └─────────────────┘    │  │  RegisterCompanyUseCase                       │   │
-                         │  │  InitiatePaymentUseCase          «port»       ├───┼──► CompanyRepository
-  ┌─────────────────┐    │  │  HandlePaymentEventUseCase   CompanyRepository│   │    (JDBC adapter)
-  │  Webhook        │    │  │                              SessionRepository │   │
-  │  Controller     ├───►│  │  ┌────────────────────────┐  PaymentGateway   ├───┼──► OnboardingSession
-  │  (adapter)      │    │  │  │     Domain Layer        │                  │   │    Repository
-  └─────────────────┘    │  │  │  Company (aggregate)   │                  │   │    (JDBC adapter)
-           ▲             │  │  │  OnboardingSession      │                  │   │
-           │             │  │  │  AdminUser              │                  ├───┼──► StripePaymentGateway
-  ┌────────┴────────┐    │  │  │  Value Objects          │                  │   │    (Stripe SDK adapter)
-  │  Stripe         │    │  │  │  Domain Events          │                  │   │         │
-  │  (webhook POST) │    │  │  │  State Machine          │                  │   │         ▼
-  └─────────────────┘    │  │  └────────────────────────┘                  │   │    ┌─────────────┐
-                         │  └──────────────────────────────────────────────┘   │    │  Stripe API │
-                         └──────────────────────────────────────────────────────┘    └─────────────┘
+    subgraph appLayer["Application Layer"]
+        RegisterUC["RegisterCompanyUseCase"]
+        InitiatePaymentUC["InitiatePaymentUseCase"]
+        HandlePaymentUC["HandlePaymentEventUseCase"]
+    end
 
-  «driving ports»: use case interfaces the adapters call into
-  «driven ports»:  repository/gateway interfaces the use cases call out through
+    subgraph domainLayer["Domain Layer"]
+        CompanyAggregate["Company<br>(aggregate)"]
+        SessionDomain["OnboardingSession"]
+        AdminUserDomain["AdminUser"]
+        ValueObjects["Value Objects"]
+        DomainEvents["Domain Events"]
+        StateMachine["State Machine"]
+    end
+
+    subgraph drivenPorts["«driven ports» (domain/port defines, infrastructure implements)"]
+        CompanyRepoPort["CompanyRepository"]
+        SessionRepoPort["SessionRepository"]
+        PaymentGatewayPort["PaymentGateway"]
+    end
+
+    subgraph appCore["APPLICATION CORE"]
+        appLayer
+        domainLayer
+        drivenPorts
+    end
+
+    subgraph drivenSide["DRIVEN SIDE"]
+        CompanyRepoImpl["CompanyRepository<br>(JDBC adapter)"]
+        SessionRepoImpl["OnboardingSession<br>Repository<br>(JDBC adapter)"]
+        StripeGateway["StripePaymentGateway<br>(Stripe SDK adapter)"]
+        PostgreSQL[("PostgreSQL")]
+        StripeAPI["Stripe API"]
+    end
+
+    RestClient -- calls --> OnboardingCtrl
+    StripeWebhook -- calls --> WebhookCtrl
+    
+    OnboardingCtrl -- calls --> RegisterUC
+    OnboardingCtrl -- calls --> InitiatePaymentUC
+    WebhookCtrl -- calls --> HandlePaymentUC
+    
+    RegisterUC -. uses .-> CompanyAggregate
+    InitiatePaymentUC -. uses .-> CompanyAggregate
+    HandlePaymentUC -. uses .-> CompanyAggregate
+    HandlePaymentUC -. uses .-> SessionDomain
+    
+    RegisterUC -- calls --> CompanyRepoPort
+    InitiatePaymentUC -- calls --> SessionRepoPort
+    InitiatePaymentUC -- calls --> PaymentGatewayPort
+    HandlePaymentUC -- calls --> SessionRepoPort
+    HandlePaymentUC -- calls --> CompanyRepoPort
+    
+    CompanyRepoPort -. implemented by .-> CompanyRepoImpl
+    SessionRepoPort -. implemented by .-> SessionRepoImpl
+    PaymentGatewayPort -. implemented by .-> StripeGateway
+    
+    CompanyRepoImpl --> PostgreSQL
+    SessionRepoImpl --> PostgreSQL
+    StripeGateway -- calls --> StripeAPI
+
+    style appLayer fill:#FFF9C4
+    style domainLayer fill:#BBDEFB
+    style drivenPorts fill:#E1BEE7
+    style appCore stroke:#00C853
 ```
+
 
 ### Ports explained
 
