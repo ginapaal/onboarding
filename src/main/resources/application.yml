@@ -28,8 +28,6 @@ stripe:
 onboarding:
   payment:
     max-retries: 3
-    amount-in-minor-units: 9900
-    currency: USD
 
 server:
   port: 8080

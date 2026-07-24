@@ -446,6 +446,60 @@ deserialization, otherwise signature verification fails.
 
 ---
 
+## Regional Pricing
+
+Subscription price and currency are resolved server-side from a `regional_prices` table,
+seeded by Flyway. The client supplies `ipCountry` (ISO 3166-1 alpha-2) in the payment
+initiation request; the server looks up the matching row and uses that `Money` value when
+creating the Stripe PaymentIntent.
+
+A `DEFAULT` row acts as a fallback for any country not explicitly listed. When the fallback
+is used, a `pricingWarning` is returned in the response so the frontend can surface a message
+such as: *"Could not determine pricing for your region. Defaulting to USD."*
+
+### Why client-supplied `ipCountry` rather than server-side derivation?
+
+| Approach | Pros | Cons |
+|---|---|---|
+| Client sends `ipCountry` | Simple, no extra infrastructure, easy to test | Client can lie — a user could claim a cheaper region |
+| Server derives from request IP | Tamper-proof | Requires a geolocation library (MaxMind, ip-api); VPNs still defeat it |
+
+**Decision for this slice:** client-supplied. The implementation is transparent and easy to
+verify. The risk of price manipulation is acceptable here because regional pricing differences
+reflect currency conversion rather than significant discount tiers. In a production system
+where price differences are material, server-side IP resolution would be the right default,
+with the geolocation call isolated behind the `PricingRepository` port so it remains
+swappable.
+
+### How should pricing data be managed?
+
+Hardcoding `amountInMinorUnits` and `currency` in `application.yml` treats a business
+concern (what to charge) as an operational concern (how to configure the service) — the
+wrong abstraction. Several better options exist:
+
+| Option | How price changes happen | Who can do it |
+|---|---|---|
+| Flyway migration (current) | New `.sql` migration file, PR, deployment | Developer |
+| Internal admin API | `PUT /admin/pricing/{countryCode}` writes to DB directly | Ops team |
+| Third-party CMS (Contentful, Sanity, etc.) | Edit a content entry in the CMS UI | Product owner, PM — no developer needed |
+| Stripe Price objects | Update price in the Stripe dashboard | Anyone with Stripe access |
+
+**Decision for this slice:** Flyway-seeded database table, for simplicity. Price changes still
+require a migration and a deployment, which is not ideal — but it correctly separates pricing
+data from application config and keeps it versioned and auditable alongside the schema.
+
+In a real product, a CMS or an internal admin API would be the right call: product owners
+and PMs can update prices or add new regions without raising a ticket or waiting for a
+deployment.
+
+**This is straightforward to evolve** because `PricingRepository` is a port — an interface
+defined in the domain with no infrastructure knowledge. Swapping the Flyway-backed
+`RegionalPriceJdbcRepository` for a `ContentfulPricingAdapter` or `StripePricingAdapter`
+requires no changes to `InitiatePayment` or any domain code. The hexagonal boundary makes
+this a one-implementation swap.
+
+---
+
 ## Failure Scenarios
 
 | Scenario | System behaviour | User experience |

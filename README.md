@@ -15,6 +15,21 @@ Self-serve business onboarding with Stripe payment integration.
 - A [Stripe](https://stripe.com) account (test mode keys)
 - [Stripe CLI](https://docs.stripe.com/stripe-cli) (for local webhook forwarding)
 
+### Java version management
+
+This project requires **Java 21**. A `.java-version` file is committed at the repo root.
+If you have multiple JDKs installed, use [jenv](https://www.jenv.be) to ensure Maven picks
+up the correct one:
+
+```bash
+brew install jenv
+jenv add $(/usr/libexec/java_home -v 21)
+jenv local 21
+```
+
+Without this, Maven may run on a newer JDK where Lombok annotation processing fails silently,
+causing missing constructors and getters at compile time.
+
 ## Getting Started
 
 ### 1. Start the database
