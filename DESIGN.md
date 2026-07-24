@@ -19,29 +19,88 @@ a domain port; the domain model never imports Stripe types directly.
 
 ## Architecture: Hexagonal (Ports & Adapters)
 
+### Why hexagonal?
+
+The classic layered architecture (Controller → Service → Repository) tends to blur boundaries
+over time: services accumulate Stripe SDK calls, JPA annotations creep into domain objects, and
+tests become hard to write without a full Spring context. The core problem is that the domain
+*depends on* infrastructure, when it should be the other way around.
+
+Hexagonal architecture (also called Ports & Adapters, coined by Alistair Cockburn) inverts this.
+The domain sits at the centre and defines *interfaces* (ports) for everything it needs. The
+outside world — HTTP, Stripe, the database — provides *implementations* (adapters) that plug
+into those ports. Nothing in the domain or application layer imports a framework class or an
+SDK type.
+
+This matters concretely for this project in three ways:
+
+1. **Stripe can be swapped without touching domain logic.** `PaymentGateway` is a port. Tests
+   use a `MockPaymentGateway`; production uses `StripePaymentGateway`. The state machine and
+   use cases are identical in both cases.
+
+2. **The domain is testable in plain Java.** State machine tests, aggregate invariant tests,
+   and use case tests need no Spring context, no database, and no Stripe account. They run in
+   milliseconds.
+
+3. **The delivery mechanism is a detail.** If we later want a queue consumer or a CLI tool to
+   trigger onboarding, we add a driving adapter. The use cases stay unchanged.
+
+### Diagram
+
 ```
-┌──────────────────────────────────────────────────────────┐
-│                        domain/                            │
-│   model/        event/        port/ (interfaces only)    │
-│   (aggregates,  (domain       (PaymentGateway,            │
-│    value objs)   events)       CompanyRepository, …)      │
-└───────────────────────────┬──────────────────────────────┘
-                            │ depends on
-          ┌─────────────────┴─────────────────┐
-          │          application/              │
-          │  usecase/ (one class per use case) │
-          └─────────────────┬─────────────────┘
-                            │ depends on
-          ┌─────────────────┴──────────────────────────────┐
-          │              infrastructure/                    │
-          │  persistence/   stripe/   web/                  │
-          │  (JPA adapters) (Stripe   (controllers,         │
-          │                  adapter)  DTOs)                │
-          └────────────────────────────────────────────────┘
+  DRIVING SIDE                                              DRIVEN SIDE
+  (they call us)                                            (we call them)
+
+  ┌─────────────────┐                                    ┌─────────────────┐
+  │  REST Client /  │                                    │   PostgreSQL    │
+  │  Browser        │                                    └────────▲────────┘
+  └────────┬────────┘                                             │
+           │                                                      │ implements
+           │ calls                                                │
+           ▼                                       ┌─────────────┴──────────┐
+  ┌─────────────────┐    ┌──────────────────────────────────────────────────────┐
+  │  Onboarding     │    │                   APPLICATION CORE                   │
+  │  Controller     ├───►│  ┌──────────────────────────────────────────────┐   │
+  │  (adapter)      │    │  │              Application Layer                │   │
+  └─────────────────┘    │  │  RegisterCompanyUseCase                       │   │
+                         │  │  InitiatePaymentUseCase          «port»       ├───┼──► CompanyRepository
+  ┌─────────────────┐    │  │  HandlePaymentEventUseCase   CompanyRepository│   │    (JPA adapter)
+  │  Webhook        │    │  │                              SessionRepository │   │
+  │  Controller     ├───►│  │  ┌────────────────────────┐  PaymentGateway   ├───┼──► OnboardingSession
+  │  (adapter)      │    │  │  │     Domain Layer        │                  │   │    Repository
+  └─────────────────┘    │  │  │  Company (aggregate)   │                  │   │    (JPA adapter)
+           ▲             │  │  │  OnboardingSession      │                  │   │
+           │             │  │  │  AdminUser              │                  ├───┼──► StripePaymentGateway
+  ┌────────┴────────┐    │  │  │  Value Objects          │                  │   │    (Stripe SDK adapter)
+  │  Stripe         │    │  │  │  Domain Events          │                  │   │         │
+  │  (webhook POST) │    │  │  │  State Machine          │                  │   │         ▼
+  └─────────────────┘    │  │  └────────────────────────┘                  │   │    ┌─────────────┐
+                         │  └──────────────────────────────────────────────┘   │    │  Stripe API │
+                         └──────────────────────────────────────────────────────┘    └─────────────┘
+
+  «driving ports»: use case interfaces the adapters call into
+  «driven ports»:  repository/gateway interfaces the use cases call out through
 ```
 
-**Why hexagonal:** The domain model and use cases carry zero framework annotations. This makes
-them straightforward to unit test and decouples business rules from delivery mechanism choices.
+### Package layout
+
+```
+com.example.onboarding
+├── domain
+│   ├── model          (Company, AdminUser, OnboardingSession, value objects)
+│   ├── event          (CompanyRegistered, PaymentSucceeded, …)
+│   └── port           (PaymentGateway, CompanyRepository, SessionRepository)
+├── application
+│   └── usecase        (RegisterCompanyUseCase, InitiatePaymentUseCase,
+│                        HandlePaymentEventUseCase)
+└── infrastructure
+    ├── persistence    (JPA entities, Spring Data repos, domain↔JPA mappers)
+    ├── stripe         (StripePaymentGateway, StripeWebhookVerifier)
+    └── web            (OnboardingController, WebhookController, request/response DTOs)
+```
+
+The dependency rule is strictly enforced: `infrastructure` depends on `application` and
+`domain`; `application` depends on `domain`; `domain` depends on nothing.
 
 ---
 
