@@ -5,7 +5,7 @@ import com.example.onboarding.application.usecase.InitiatePaymentResult;
 import com.example.onboarding.domain.model.CompanyId;
 import com.example.onboarding.domain.model.CompanyStatus;
 import com.example.onboarding.domain.model.ContactInfo;
-import com.example.onboarding.domain.model.SessionId;
+import com.example.onboarding.domain.model.OnboardingSessionId;
 import com.example.onboarding.domain.port.inbound.OnboardingPort;
 import com.example.onboarding.domain.port.inbound.RegistrationResult;
 import com.example.onboarding.infrastructure.web.dto.InitiatePaymentRequest;
@@ -45,28 +45,28 @@ public class OnboardingController implements OnboardingPort {
     public ResponseEntity<InitiatePaymentResponse> handleInitiatePayment(
             @PathVariable UUID sessionId,
             @RequestBody @Valid InitiatePaymentRequest request) {
-        InitiatePaymentResult result = initiatePaymentUseCase.execute(new SessionId(sessionId), request.ipCountry());
+        InitiatePaymentResult result = initiatePaymentUseCase.execute(new OnboardingSessionId(sessionId), request.ipCountry());
         return ResponseEntity.accepted().body(new InitiatePaymentResponse(result.clientSecret(), result.pricingWarning()));
     }
 
     @GetMapping("/{sessionId}/status")
     public ResponseEntity<OnboardingStatusResponse> handleGetStatus(@PathVariable UUID sessionId) {
-        CompanyStatus status = getStatus(new SessionId(sessionId));
+        CompanyStatus status = getStatus(new OnboardingSessionId(sessionId));
         return ResponseEntity.ok(new OnboardingStatusResponse(status.name()));
     }
 
     @Override
     public RegistrationResult register(String companyName, ContactInfo adminContact) {
-        return new RegistrationResult(SessionId.generate(), CompanyId.generate());
+        return new RegistrationResult(OnboardingSessionId.generate(), CompanyId.generate());
     }
 
     @Override
-    public void initiatePayment(SessionId sessionId) {
+    public void initiatePayment(OnboardingSessionId sessionId) {
         // superseded by handleInitiatePayment — wired directly to use case
     }
 
     @Override
-    public CompanyStatus getStatus(SessionId sessionId) {
+    public CompanyStatus getStatus(OnboardingSessionId sessionId) {
         return CompanyStatus.INCOMPLETE;
     }
 }

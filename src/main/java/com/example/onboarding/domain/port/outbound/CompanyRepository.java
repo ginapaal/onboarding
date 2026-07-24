@@ -7,7 +7,9 @@ import java.util.Optional;
 
 public interface CompanyRepository {
 
-    void save(Company company);
+    void insert(Company company);
+
+    void update(Company company);
 
     Optional<Company> findById(CompanyId id);
 }

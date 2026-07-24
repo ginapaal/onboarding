@@ -1,10 +1,10 @@
 package com.example.onboarding.domain.exception;
 
-import com.example.onboarding.domain.model.SessionId;
+import com.example.onboarding.domain.model.OnboardingSessionId;
 
 public class SessionNotFoundException extends RuntimeException {
 
-    public SessionNotFoundException(SessionId id) {
+    public SessionNotFoundException(OnboardingSessionId id) {
         super("Onboarding session not found: " + id.value());
     }
 }

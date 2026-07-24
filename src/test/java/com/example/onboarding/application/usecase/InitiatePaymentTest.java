@@ -10,12 +10,12 @@ import com.example.onboarding.domain.model.CustomerReference;
 import com.example.onboarding.domain.model.Money;
 import com.example.onboarding.domain.model.OnboardingSession;
 import com.example.onboarding.domain.model.PaymentIntentResult;
-import com.example.onboarding.domain.model.SessionId;
+import com.example.onboarding.domain.model.OnboardingSessionId;
 import com.example.onboarding.domain.model.StripePaymentIntentId;
 import com.example.onboarding.domain.port.outbound.CompanyRepository;
 import com.example.onboarding.domain.port.outbound.PaymentGateway;
 import com.example.onboarding.domain.port.outbound.PricingRepository;
-import com.example.onboarding.domain.port.outbound.SessionRepository;
+import com.example.onboarding.domain.port.outbound.OnboardingSessionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,7 +35,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class InitiatePaymentTest {
 
-    @Mock private SessionRepository sessionRepository;
+    @Mock private OnboardingSessionRepository sessionRepository;
     @Mock private CompanyRepository companyRepository;
     @Mock private PaymentGateway paymentGateway;
     @Mock private PricingRepository pricingRepository;
@@ -43,7 +43,7 @@ class InitiatePaymentTest {
     @InjectMocks
     private InitiatePayment initiatePayment;
 
-    private SessionId sessionId;
+    private OnboardingSessionId sessionId;
     private CompanyId companyId;
     private OnboardingSession session;
     private Company company;
@@ -53,7 +53,7 @@ class InitiatePaymentTest {
 
     @BeforeEach
     void setUp() {
-        sessionId = SessionId.generate();
+        sessionId = OnboardingSessionId.generate();
         companyId = CompanyId.generate();
         session = OnboardingSession.create(sessionId, companyId);
         company = Company.register(companyId, "Acme Corp", new ContactInfo("admin@acme.com", "Jane", "Doe"));
@@ -135,7 +135,7 @@ class InitiatePaymentTest {
         assertThat(company.getStatus()).isEqualTo(CompanyStatus.PENDING_ACTIVATION);
         assertThat(session.getPaymentIntentId()).isEqualTo(new StripePaymentIntentId("pi_test123"));
         assertThat(session.getClientSecret()).isEqualTo("pi_test123_secret");
-        verify(sessionRepository).save(session);
-        verify(companyRepository).save(company);
+        verify(sessionRepository).update(session);
+        verify(companyRepository).update(company);
     }
 }

@@ -7,11 +7,11 @@ import com.example.onboarding.domain.model.CustomerReference;
 import com.example.onboarding.domain.model.Money;
 import com.example.onboarding.domain.model.OnboardingSession;
 import com.example.onboarding.domain.model.PaymentIntentResult;
-import com.example.onboarding.domain.model.SessionId;
+import com.example.onboarding.domain.model.OnboardingSessionId;
 import com.example.onboarding.domain.port.outbound.CompanyRepository;
 import com.example.onboarding.domain.port.outbound.PaymentGateway;
 import com.example.onboarding.domain.port.outbound.PricingRepository;
-import com.example.onboarding.domain.port.outbound.SessionRepository;
+import com.example.onboarding.domain.port.outbound.OnboardingSessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,13 +26,13 @@ public class InitiatePayment {
     private static final String FALLBACK_WARNING =
             "Could not determine pricing for your region. Defaulting to USD.";
 
-    private final SessionRepository sessionRepository;
+    private final OnboardingSessionRepository sessionRepository;
     private final CompanyRepository companyRepository;
     private final PaymentGateway paymentGateway;
     private final PricingRepository pricingRepository;
 
     @Transactional
-    public InitiatePaymentResult execute(SessionId sessionId, String ipCountry) {
+    public InitiatePaymentResult execute(OnboardingSessionId sessionId, String ipCountry) {
         OnboardingSession session = sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new SessionNotFoundException(sessionId));
 
@@ -51,8 +51,8 @@ public class InitiatePayment {
         session.recordPaymentIntent(paymentIntent.id(), paymentIntent.clientSecret());
         company.initiatePayment();
 
-        sessionRepository.save(session);
-        companyRepository.save(company);
+        sessionRepository.update(session);
+        companyRepository.update(company);
 
         return new InitiatePaymentResult(paymentIntent.clientSecret(), pricingWarning);
     }
