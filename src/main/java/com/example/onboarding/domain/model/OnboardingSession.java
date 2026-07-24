@@ -1,6 +1,5 @@
 package com.example.onboarding.domain.model;
 
-// Stub — full aggregate to be implemented
 public class OnboardingSession {
 
     private final SessionId id;

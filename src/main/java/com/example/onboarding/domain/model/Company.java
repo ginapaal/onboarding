@@ -1,6 +1,5 @@
 package com.example.onboarding.domain.model;
 
-// Stub — full aggregate with state machine and invariants to be implemented
 public class Company {
 
     private final CompanyId id;

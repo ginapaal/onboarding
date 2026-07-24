@@ -74,7 +74,7 @@ flowchart LR
     subgraph drivenPorts["«driven ports» (domain/port defines, infrastructure implements)"]
         CompanyRepoPort["CompanyRepository"]
         SessionRepoPort["SessionRepository"]
-        PaymentGatewayPort["PaymentGateway"]
+        PaymentGateway["PaymentGateway"]
     end
 
     subgraph appCore["APPLICATION CORE"]
@@ -105,13 +105,13 @@ flowchart LR
     
     RegisterUC -- calls --> CompanyRepoPort
     InitiatePaymentUC -- calls --> SessionRepoPort
-    InitiatePaymentUC -- calls --> PaymentGatewayPort
+    InitiatePaymentUC -- calls --> PaymentGateway
     HandlePaymentUC -- calls --> SessionRepoPort
     HandlePaymentUC -- calls --> CompanyRepoPort
     
     CompanyRepoPort -. implemented by .-> CompanyRepoImpl
     SessionRepoPort -. implemented by .-> SessionRepoImpl
-    PaymentGatewayPort -. implemented by .-> StripeGateway
+    PaymentGateway -. implemented by .-> StripeGateway
     
     CompanyRepoImpl --> PostgreSQL
     SessionRepoImpl --> PostgreSQL
@@ -229,7 +229,9 @@ The dependency rule is strictly enforced: `infrastructure` depends on `applicati
 
 **`Company`** — aggregate root. Owns the registration and payment lifecycle. Enforces state
 transition invariants by throwing a domain exception on illegal transitions (e.g. calling
-`paymentSucceeded()` on an already-active company).
+`paymentSucceeded()` on an already-active company). Tracks a `retryCount` against a
+`MAX_RETRIES` constant — when exhausted, `retryPayment()` throws `MaxRetriesExceededException`
+and the use case calls `escalateToSupport()`, transitioning the company to `REQUIRES_SUPPORT`.
 
 **`OnboardingSession`** — separate aggregate, referenced by `CompanyId`. Tracks a single
 payment attempt: the Stripe PaymentIntent ID, the client secret returned to the frontend,
@@ -263,17 +265,31 @@ Published by the aggregate root after a successful state transition.
 | Event | Trigger |
 |---|---|
 | `CompanyRegistered` | `Company` created |
-| `PaymentInitiated` | PaymentIntent created, Company → PENDING_PAYMENT |
+| `PaymentInitiated` | PaymentIntent created, Company → PENDING_ACTIVATION |
 | `PaymentSucceeded` | Stripe webhook received, Company → ACTIVE |
-| `PaymentFailed` | Stripe webhook received, Company → PAYMENT_FAILED |
-| `ActionRequired` | Stripe webhook received, Company → AWAITING_ACTION |
+| `PaymentFailed` | Stripe webhook received, Company → ACTIVATION_FAILED |
+| `ActionRequired` | Stripe webhook received, Company → ACTION_REQUIRED |
+| `MaxRetriesExceeded` | `retryPayment()` called at retry limit, Company → REQUIRES_SUPPORT |
 
 **Transport decision:** In-process Spring `ApplicationEventPublisher` for this slice.
 
 *Known limitation:* If the application crashes after the database write but before the event
-is published, the event is lost. The correct fix is the **Transactional Outbox** pattern
-(write events to an `outbox_events` table in the same transaction, publish via a separate
-poller). This is called out as a named tradeoff — not implemented here for scope reasons.
+is published, the event is lost. The correct fix is the **Transactional Outbox** pattern.
+
+**How it works:** instead of publishing the event directly, you write it to an `outbox_events`
+table in the *same database transaction* as the domain write. A separate poller then reads
+unpublished rows and forwards them to the message bus (e.g. Kafka). Because the event row is
+committed atomically with the domain change, a crash can never produce a saved Company without
+a corresponding event — the poller will always find and publish it on recovery.
+
+**Benefits:** guaranteed at-least-once delivery; decouples the domain write from the message
+bus; pairs naturally with Kafka for cross-service event consumers.
+
+**Tradeoffs:** adds an `outbox_events` table and a poller component; since the poller may
+publish an event and crash before marking it as sent, consumers must be idempotent (the same
+event may arrive more than once).
+
+This is called out as a named tradeoff — not implemented here for scope reasons.
 
 ---
 
@@ -282,29 +298,36 @@ poller). This is called out as a named tradeoff — not implemented here for sco
 Transition logic lives as explicit methods on the `Company` aggregate, not in a service.
 The aggregate owns the rule "which transitions are valid."
 
-```
-                  ┌─────────────┐
-                  │  INCOMPLETE │  (initial state on registration)
-                  └──────┬──────┘
-                         │ initiatePayment()
-                  ┌──────▼──────┐
-                  │   PENDING   │
-                  │   PAYMENT   │
-                  └──┬──────┬───┘
-                     │      │
-     paymentFailed() │      │ paymentSucceeded()
-                     │      │
-          ┌──────────▼─┐  ┌─▼──────┐
-          │  PAYMENT   │  │ ACTIVE │
-          │   FAILED   │  └────────┘
-          └──────┬─────┘
-                 │ retryPayment()
-                 └──────► PENDING_PAYMENT (new OnboardingSession)
+```mermaid
+stateDiagram-v2
+   [*] --> INCOMPLETE
 
-  PENDING_PAYMENT ──actionRequired()──► AWAITING_ACTION
-  AWAITING_ACTION ──paymentSucceeded() / paymentFailed()──► ACTIVE / PAYMENT_FAILED
-```
+   INCOMPLETE --> PENDING_ACTIVATION: initiatePayment()
 
+   PENDING_ACTIVATION --> ACTIVE: paymentSucceeded()
+   PENDING_ACTIVATION --> ACTION_REQUIRED: actionRequired()
+   PENDING_ACTIVATION --> ACTIVATION_FAILED: paymentFailed()
+
+   ACTION_REQUIRED --> ACTIVE: paymentSucceeded()
+   ACTION_REQUIRED --> ACTIVATION_FAILED: paymentFailed()
+
+   ACTIVATION_FAILED --> PENDING_ACTIVATION: retryPayment() [retries < MAX_RETRIES]
+   ACTIVATION_FAILED --> REQUIRES_SUPPORT: escalateToSupport() [retries >= MAX_RETRIES]
+
+   classDef incomplete fill:#fef2f2,stroke:#f87171
+   classDef pending fill:#fff7ed,stroke:#fb923c
+   classDef active fill:#f0fdf4,stroke:#4ade80
+   classDef actionRequired fill:#ecfeff,stroke:#22d3ee
+   classDef failed fill:#fef2f2,stroke:#f87171
+   classDef support fill:#f3e8ff,stroke:#a855f7
+
+   class INCOMPLETE incomplete
+   class PENDING_ACTIVATION pending
+   class ACTIVE active
+   class ACTION_REQUIRED actionRequired
+   class ACTIVATION_FAILED failed
+   class REQUIRES_SUPPORT support
+```
 ---
 
 ## Integration: Stripe
@@ -326,6 +349,73 @@ the domain or application layers.
 
 `StripePaymentGateway` implements `PaymentGateway`. All Stripe SDK imports are confined here.
 Stripe API errors are caught and translated into domain exceptions.
+
+### Stripe Response Contracts
+
+What Stripe returns and what we actually keep at the adapter boundary.
+
+#### POST /v1/customers → `CustomerReference`
+
+Stripe returns a full `Customer` object. We only need the ID for subsequent API calls:
+
+```json
+{
+  "id": "cus_Rk4xQ2abc123",        ← mapped to CustomerReference
+  "email": "admin@acme.com",
+  "name": "Jane Doe",
+  "metadata": { "companyId": "..." },
+  "created": 1720000000,
+  ... (discarded)
+}
+```
+
+#### POST /v1/payment_intents → `PaymentIntentResult`
+
+Stripe returns a full `PaymentIntent` object. We keep the ID (for webhook correlation)
+and the client secret (for the frontend to confirm payment with Stripe.js):
+
+```json
+{
+  "id": "pi_3Pxyz_secret_base",     ← mapped to PaymentIntentResult.id
+  "client_secret": "pi_3Pxyz_secret_base_abc123",  ← mapped to PaymentIntentResult.clientSecret
+  "status": "requires_payment_method",
+  "amount": 9900,
+  "currency": "usd",
+  "customer": "cus_Rk4xQ2abc123",
+  ... (discarded)
+}
+```
+
+The `clientSecret` is returned to the frontend. Stripe.js uses it to confirm the payment
+and handle 3DS without any further backend involvement.
+
+#### Webhook events
+
+All events share the same envelope. The `type` field drives routing; `data.object` is the
+full resource at the time the event was created.
+
+```json
+{
+  "id": "evt_1Pabc123",             ← stored in processed_stripe_events for idempotency
+  "type": "payment_intent.succeeded | payment_intent.payment_failed | payment_intent.requires_action",
+  "data": {
+    "object": {
+      "id": "pi_3Pxyz",             ← used to look up OnboardingSession
+      "status": "succeeded | requires_action | canceled",
+      "last_payment_error": {       ← present on payment_intent.payment_failed only
+        "code": "card_declined",
+        "message": "Your card was declined."
+      }
+    }
+  }
+}
+```
+
+| Event type | Company transition | What it means |
+|---|---|---|
+| `payment_intent.succeeded` | → `ACTIVE` | Payment confirmed |
+| `payment_intent.payment_failed` | → `ACTIVATION_FAILED` | Card declined or other failure |
+| `payment_intent.requires_action` | → `ACTION_REQUIRED` | 3DS or redirect required |
 
 ### Webhook Flow
 
@@ -361,11 +451,35 @@ deserialization, otherwise signature verification fails.
 | Scenario | System behaviour | User experience |
 |---|---|---|
 | Stripe API down during payment initiation | `PaymentGateway` throws; use case catches and wraps in a domain exception; controller returns HTTP 503 | "Payment service unavailable, please try again" — Company stays `INCOMPLETE`, nothing is persisted |
-| Card declined (synchronous) | `payment_intent.payment_failed` webhook → Company → `PAYMENT_FAILED` | Error message with decline reason; retry button re-uses same registration |
-| 3DS required | Stripe.js handles redirect on the frontend; `payment_intent.requires_action` webhook → Company → `AWAITING_ACTION` | User is redirected by the browser; no action needed from backend during the wait |
+| Card declined (synchronous) | `payment_intent.payment_failed` webhook → Company → `ACTIVATION_FAILED` | Error message with decline reason; retry button re-uses same registration |
+| 3DS required | Stripe.js handles redirect on the frontend; `payment_intent.requires_action` webhook → Company → `ACTION_REQUIRED` | User is redirected by the browser; no action needed from backend during the wait |
 | Webhook arrives twice (Stripe retry) | `processed_stripe_events` lookup returns existing row; handler returns HTTP 200 immediately | No effect on Company status |
 | Webhook arrives before session is persisted | Race condition during high load; webhook handler finds no `OnboardingSession` | Returns HTTP 404 — Stripe will retry with backoff. Alternatively: short retry loop in handler (not implemented; called out as a known edge case) |
 | Invalid registration data | Bean Validation rejects request at controller; HTTP 400 with field-level errors | Inline form errors |
+| Retry limit reached | `retryPayment()` throws `MaxRetriesExceededException`; use case calls `escalateToSupport()`; `MaxRetriesExceeded` event published | "Something went wrong with your payment. Please contact support." — prevents Stripe card hammering and protects risk score |
+
+---
+
+## Scalability
+
+Writing to multiple tables per onboarding flow (companies, admin_users, onboarding_sessions,
+outbox_events) is not a concern — these are a single database transaction, completing in
+milliseconds, with no shared locks between independent company flows. Concurrent registrations
+do not block each other.
+
+The real pressure points at high volume, and how to address them:
+
+| Bottleneck | Why it matters | Solution |
+|---|---|---|
+| Database connections | HikariCP defaults to 10 connections; requests queue under load | Tune pool size; add PgBouncer to multiplex app connections into fewer real DB connections |
+| Stripe rate limits | Stripe enforces per-key rate limits; high registration volume triggers 429s | Retry with exponential backoff in `StripePaymentGateway`; queue payment initiations if needed |
+| Webhook throughput | Simultaneous payments fire simultaneous webhooks | Service is stateless — scale horizontally; DB-based idempotency guard is correct across all instances with no extra coordination |
+| Status polling | Every waiting frontend polling `GET /{sessionId}/status` adds read traffic | Add a read replica for status queries; or replace polling with SSE or WebSocket to push status changes |
+
+**What scales well by design:**
+- The service is stateless — horizontal scaling behind a load balancer requires no coordination
+- Each company's onboarding flow is fully independent — no cross-company contention
+- DB-based idempotency for webhooks works correctly across multiple running instances
 
 ---
 
@@ -420,7 +534,7 @@ owned by the onboarding service.
 |---|---|---|
 | Frontend / Stripe.js | Out of scope for backend slice | React or plain JS with `@stripe/stripe-js` confirming the PaymentIntent |
 | Auth / JWT | Onboarding is a pre-auth flow; no identity exists yet. See Security section. | JWT issued by a dedicated identity service; Spring Security OAuth2 resource server to validate on payment and status endpoints |
-| Transactional Outbox | Added complexity for marginal gain in demo context | Debezium or a scheduled poller on `outbox_events` |
+| Transactional Outbox | Adds infrastructure complexity (outbox table + poller) not justified without real event consumers | Scheduled poller or Debezium CDC on `outbox_events` publishing to Kafka |
 | Email notifications | Infrastructure concern, not domain | Spring Mail or SendGrid on `CompanyActivated` event |
 | Rate limiting | Ops concern | Bucket4j or API gateway |
 | Payment retry UX | Depends on product decisions not yet made | New `OnboardingSession` per attempt; frontend polls status |

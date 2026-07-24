@@ -5,12 +5,11 @@ import com.example.onboarding.domain.model.ContactInfo;
 import com.example.onboarding.domain.model.CustomerReference;
 import com.example.onboarding.domain.model.Money;
 import com.example.onboarding.domain.model.PaymentIntentResult;
-import com.example.onboarding.domain.model.StripePaymentIntentId;
-import com.example.onboarding.domain.port.PaymentGateway;
+import com.example.onboarding.domain.port.outbound.PaymentGateway;
 import org.springframework.stereotype.Component;
 
 @Component
-public class PaymentGatewayStub implements PaymentGateway {
+public class StripePaymentGateway implements PaymentGateway {
 
     @Override
     public CustomerReference createCustomer(ContactInfo contact, CompanyId companyId) {

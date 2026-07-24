@@ -1,4 +1,4 @@
-package com.example.onboarding.domain.port;
+package com.example.onboarding.domain.port.inbound;
 
 public interface WebhookPort {
 

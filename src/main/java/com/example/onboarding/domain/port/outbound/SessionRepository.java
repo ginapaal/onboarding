@@ -1,4 +1,4 @@
-package com.example.onboarding.domain.port;
+package com.example.onboarding.domain.port.outbound;
 
 import com.example.onboarding.domain.model.OnboardingSession;
 import com.example.onboarding.domain.model.SessionId;
