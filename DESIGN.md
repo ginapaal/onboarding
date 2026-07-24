@@ -64,11 +64,11 @@ This matters concretely for this project in three ways:
   │  (adapter)      │    │  │              Application Layer                │   │
   └─────────────────┘    │  │  RegisterCompanyUseCase                       │   │
                          │  │  InitiatePaymentUseCase          «port»       ├───┼──► CompanyRepository
-  ┌─────────────────┐    │  │  HandlePaymentEventUseCase   CompanyRepository│   │    (JPA adapter)
+  ┌─────────────────┐    │  │  HandlePaymentEventUseCase   CompanyRepository│   │    (JDBC adapter)
   │  Webhook        │    │  │                              SessionRepository │   │
   │  Controller     ├───►│  │  ┌────────────────────────┐  PaymentGateway   ├───┼──► OnboardingSession
   │  (adapter)      │    │  │  │     Domain Layer        │                  │   │    Repository
-  └─────────────────┘    │  │  │  Company (aggregate)   │                  │   │    (JPA adapter)
+  └─────────────────┘    │  │  │  Company (aggregate)   │                  │   │    (JDBC adapter)
            ▲             │  │  │  OnboardingSession      │                  │   │
            │             │  │  │  AdminUser              │                  ├───┼──► StripePaymentGateway
   ┌────────┴────────┐    │  │  │  Value Objects          │                  │   │    (Stripe SDK adapter)
