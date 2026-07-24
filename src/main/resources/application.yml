@@ -1,0 +1,29 @@
+spring:
+  application:
+    name: onboarding
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/onboarding
+    username: onboarding
+    password: onboarding
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+stripe:
+  api-key: ${STRIPE_API_KEY}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET}
+
+server:
+  port: 8080
