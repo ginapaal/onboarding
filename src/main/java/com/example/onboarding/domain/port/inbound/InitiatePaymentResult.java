@@ -1,3 +1,3 @@
-package com.example.onboarding.application.usecase;
+package com.example.onboarding.domain.port.inbound;
 
 public record InitiatePaymentResult(String clientSecret, String pricingWarning) {}

@@ -184,22 +184,54 @@ would still compile. Infrastructure needs the domain; the domain needs nothing.
 
 #### Driving ports — called from outside, implemented inside the core
 
-The controllers (adapters on the driving side) call into use cases. The use cases are
-the driving port. Controllers depend on them; the use cases do not know controllers exist.
+The controllers (adapters on the driving side) call into use cases. Controllers depend on
+use cases; use cases do not know controllers exist.
 
 ```java
-// application/usecase/RegisterCompanyUseCase.java
-public class RegisterCompanyUseCase {
-    public RegisterResult execute(RegisterCommand command) { ... }
+// application/usecase/RegisterCompany.java
+@Service
+public class RegisterCompany {
+    public RegistrationResult execute(String companyName, ContactInfo adminContact) { ... }
 }
 
 // infrastructure/web/OnboardingController.java
 // The controller depends on the use case — never the other way around.
+@RestController
 public class OnboardingController {
-    private final RegisterCompanyUseCase registerCompany;
+    private final RegisterCompany registerCompany;
     ...
 }
 ```
+
+**`OnboardingPort` — the REST API contract**
+
+`OnboardingPort` is an interface in `infrastructure.web` that defines the three HTTP handler
+signatures. `OnboardingController` is its only implementation. It lives in the web layer
+(not the domain) because its method signatures reference DTO and `ResponseEntity` types —
+it is an HTTP contract, not a domain abstraction.
+
+The value is documentation and enforceability: the interface makes the API surface explicit,
+and `@Override` on each handler makes it immediately clear which methods satisfy the contract.
+
+**Why inbound port interfaces per use case?**
+
+Consistency with the driven side: every boundary is crossed through an interface. The
+controller imports only from `domain.port.inbound` — the same way infrastructure imports
+only from `domain.port.outbound`. The `@PostMapping` handlers call the use case interfaces
+directly; there is no delegation layer.
+
+The single-entry-point discipline is additionally enforced by an ArchUnit test:
+
+```java
+// Every @Service in the application layer may only have one public method, named execute.
+methods().that().areDeclaredInClassesThat()
+    .resideInAPackage("..application.usecase..")
+    .and().areAnnotatedWith(Service.class)
+    .and().arePublic()
+    .should().haveName("execute");
+```
+
+This makes the convention a failing build rather than a code review comment.
 
 ### Package layout
 

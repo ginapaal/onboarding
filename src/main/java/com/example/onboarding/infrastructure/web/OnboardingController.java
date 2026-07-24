@@ -1,12 +1,12 @@
 package com.example.onboarding.infrastructure.web;
 
-import com.example.onboarding.application.usecase.InitiatePayment;
-import com.example.onboarding.application.usecase.InitiatePaymentResult;
-import com.example.onboarding.domain.model.CompanyId;
 import com.example.onboarding.domain.model.CompanyStatus;
 import com.example.onboarding.domain.model.ContactInfo;
 import com.example.onboarding.domain.model.OnboardingSessionId;
-import com.example.onboarding.domain.port.inbound.OnboardingPort;
+import com.example.onboarding.domain.port.inbound.GetOnboardingStatusUseCase;
+import com.example.onboarding.domain.port.inbound.InitiatePaymentResult;
+import com.example.onboarding.domain.port.inbound.InitiatePaymentUseCase;
+import com.example.onboarding.domain.port.inbound.RegisterCompanyUseCase;
 import com.example.onboarding.domain.port.inbound.RegistrationResult;
 import com.example.onboarding.infrastructure.web.dto.InitiatePaymentRequest;
 import com.example.onboarding.infrastructure.web.dto.InitiatePaymentResponse;
@@ -31,42 +31,32 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class OnboardingController implements OnboardingPort {
 
-    private final InitiatePayment initiatePaymentUseCase;
+    private final RegisterCompanyUseCase registerCompany;
+    private final InitiatePaymentUseCase initiatePayment;
+    private final GetOnboardingStatusUseCase getOnboardingStatus;
 
+    @Override
     @PostMapping("/register")
     public ResponseEntity<RegisterResponse> handleRegister(@RequestBody @Valid RegisterRequest request) {
         ContactInfo contact = new ContactInfo(request.adminEmail(), request.adminFirstName(), request.adminLastName());
-        RegistrationResult result = register(request.companyName(), contact);
+        RegistrationResult result = registerCompany.execute(request.companyName(), contact);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new RegisterResponse(result.sessionId().value(), result.companyId().value()));
     }
 
+    @Override
     @PostMapping("/{sessionId}/payment")
     public ResponseEntity<InitiatePaymentResponse> handleInitiatePayment(
             @PathVariable UUID sessionId,
             @RequestBody @Valid InitiatePaymentRequest request) {
-        InitiatePaymentResult result = initiatePaymentUseCase.execute(new OnboardingSessionId(sessionId), request.ipCountry());
+        InitiatePaymentResult result = initiatePayment.execute(new OnboardingSessionId(sessionId), request.ipCountry());
         return ResponseEntity.accepted().body(new InitiatePaymentResponse(result.clientSecret(), result.pricingWarning()));
     }
 
+    @Override
     @GetMapping("/{sessionId}/status")
     public ResponseEntity<OnboardingStatusResponse> handleGetStatus(@PathVariable UUID sessionId) {
-        CompanyStatus status = getStatus(new OnboardingSessionId(sessionId));
+        CompanyStatus status = getOnboardingStatus.execute(new OnboardingSessionId(sessionId));
         return ResponseEntity.ok(new OnboardingStatusResponse(status.name()));
-    }
-
-    @Override
-    public RegistrationResult register(String companyName, ContactInfo adminContact) {
-        return new RegistrationResult(OnboardingSessionId.generate(), CompanyId.generate());
-    }
-
-    @Override
-    public void initiatePayment(OnboardingSessionId sessionId) {
-        // superseded by handleInitiatePayment — wired directly to use case
-    }
-
-    @Override
-    public CompanyStatus getStatus(OnboardingSessionId sessionId) {
-        return CompanyStatus.INCOMPLETE;
     }
 }

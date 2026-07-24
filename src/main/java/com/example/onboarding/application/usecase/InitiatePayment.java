@@ -11,6 +11,8 @@ import com.example.onboarding.domain.model.OnboardingSessionId;
 import com.example.onboarding.domain.port.outbound.CompanyRepository;
 import com.example.onboarding.domain.port.outbound.PaymentGateway;
 import com.example.onboarding.domain.port.outbound.PricingRepository;
+import com.example.onboarding.domain.port.inbound.InitiatePaymentResult;
+import com.example.onboarding.domain.port.inbound.InitiatePaymentUseCase;
 import com.example.onboarding.domain.port.outbound.OnboardingSessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,7 +22,7 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
-public class InitiatePayment {
+public class InitiatePayment implements InitiatePaymentUseCase {
 
     private static final String FALLBACK_COUNTRY = "US";
     private static final String FALLBACK_WARNING =
@@ -31,6 +33,7 @@ public class InitiatePayment {
     private final PaymentGateway paymentGateway;
     private final PricingRepository pricingRepository;
 
+    @Override
     @Transactional
     public InitiatePaymentResult execute(OnboardingSessionId sessionId, String ipCountry) {
         OnboardingSession session = sessionRepository.findById(sessionId)
