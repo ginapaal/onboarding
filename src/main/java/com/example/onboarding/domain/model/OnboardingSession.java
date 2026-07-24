@@ -1,25 +1,26 @@
 package com.example.onboarding.domain.model;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
+@Getter
+@AllArgsConstructor
 public class OnboardingSession {
 
     private final SessionId id;
     private final CompanyId companyId;
     private StripePaymentIntentId paymentIntentId;
+    private String clientSecret;
 
-    public OnboardingSession(SessionId id, CompanyId companyId) {
-        this.id = id;
-        this.companyId = companyId;
+    public static OnboardingSession create(SessionId id, CompanyId companyId) {
+        return new OnboardingSession(id, companyId, null, null);
     }
 
-    public SessionId getId() {
-        return id;
-    }
-
-    public CompanyId getCompanyId() {
-        return companyId;
-    }
-
-    public StripePaymentIntentId getPaymentIntentId() {
-        return paymentIntentId;
+    public void recordPaymentIntent(StripePaymentIntentId paymentIntentId, String clientSecret) {
+        if (this.paymentIntentId != null) {
+            throw new IllegalStateException("Payment intent already recorded for session " + id.value());
+        }
+        this.paymentIntentId = paymentIntentId;
+        this.clientSecret = clientSecret;
     }
 }

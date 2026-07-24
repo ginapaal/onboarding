@@ -25,5 +25,11 @@ stripe:
   api-key: ${STRIPE_API_KEY}
   webhook-secret: ${STRIPE_WEBHOOK_SECRET}
 
+onboarding:
+  payment:
+    max-retries: 3
+    amount-in-minor-units: 9900
+    currency: USD
+
 server:
   port: 8080
