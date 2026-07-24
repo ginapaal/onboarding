@@ -4,8 +4,7 @@ import com.example.onboarding.domain.exception.MaxRetriesExceededException;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
-import java.util.Arrays;
-import java.util.Set;
+import java.util.function.Predicate;
 
 @Getter
 @AllArgsConstructor
@@ -26,42 +25,59 @@ public class Company {
         this.stripeCustomerReference = customerReference;
     }
 
-    public void initiatePayment() {
-        requireStatus(CompanyStatus.INCOMPLETE);
-        this.status = CompanyStatus.PENDING_ACTIVATION;
+    public void initiateActivation() {
+        transitionTo(current -> current == CompanyStatus.INCOMPLETE, CompanyStatus.PENDING_ACTIVATION);
     }
 
-    public void paymentSucceeded() {
-        requireStatus(CompanyStatus.PENDING_ACTIVATION, CompanyStatus.ACTION_REQUIRED);
-        this.status = CompanyStatus.ACTIVE;
+    public void activate() {
+        transitionTo(
+                current -> current == CompanyStatus.PENDING_ACTIVATION
+                        || current == CompanyStatus.ACTION_REQUIRED
+                        || current == CompanyStatus.ACTIVATION_PROCESSING,
+                CompanyStatus.ACTIVE
+        );
     }
 
-    public void paymentFailed() {
-        requireStatus(CompanyStatus.PENDING_ACTIVATION, CompanyStatus.ACTION_REQUIRED);
-        this.status = CompanyStatus.ACTIVATION_FAILED;
+    public void activationFailed() {
+        transitionTo(
+                current -> current == CompanyStatus.PENDING_ACTIVATION
+                        || current == CompanyStatus.ACTION_REQUIRED
+                        || current == CompanyStatus.ACTIVATION_PROCESSING,
+                CompanyStatus.ACTIVATION_FAILED
+        );
     }
 
     public void actionRequired() {
-        requireStatus(CompanyStatus.PENDING_ACTIVATION);
-        this.status = CompanyStatus.ACTION_REQUIRED;
+        transitionTo(current -> current == CompanyStatus.PENDING_ACTIVATION, CompanyStatus.ACTION_REQUIRED);
     }
 
-    public void retryPayment(int maxRetries) {
-        requireStatus(CompanyStatus.ACTIVATION_FAILED);
+    public void activationProcessing() {
+        transitionTo(current -> current == CompanyStatus.PENDING_ACTIVATION, CompanyStatus.ACTIVATION_PROCESSING);
+    }
+
+    public void activationCanceled() {
+        transitionTo(
+                current -> current == CompanyStatus.PENDING_ACTIVATION || current == CompanyStatus.ACTION_REQUIRED,
+                CompanyStatus.ACTIVATION_CANCELED
+        );
+    }
+
+    public void retryActivation(int maxRetries) {
         if (retryCount >= maxRetries) {
             throw new MaxRetriesExceededException(id, retryCount);
         }
+        transitionTo(current -> current == CompanyStatus.ACTIVATION_FAILED, CompanyStatus.PENDING_ACTIVATION);
         retryCount++;
-        this.status = CompanyStatus.PENDING_ACTIVATION;
     }
 
     public void escalateToSupport() {
         this.status = CompanyStatus.REQUIRES_SUPPORT;
     }
 
-    private void requireStatus(CompanyStatus... allowed) {
-        if (!Set.of(allowed).contains(this.status)) {
-            throw new IllegalStateException("Expected one of " + Arrays.toString(allowed) + " but was " + this.status);
+    private void transitionTo(Predicate<CompanyStatus> allowedFromStatus, CompanyStatus next) {
+        if (!allowedFromStatus.test(this.status)) {
+            throw new IllegalStateException("Cannot transition to " + next + " from " + this.status);
         }
+        this.status = next;
     }
 }

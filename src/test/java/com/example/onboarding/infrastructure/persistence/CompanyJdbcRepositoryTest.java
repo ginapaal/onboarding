@@ -67,7 +67,7 @@ class CompanyJdbcRepositoryTest {
         );
         repository.insert(company);
 
-        company.initiatePayment();
+        company.initiateActivation();
         repository.update(company);
 
         Optional<Company> found = repository.findById(company.getId());
@@ -84,9 +84,9 @@ class CompanyJdbcRepositoryTest {
         );
         repository.insert(company);
 
-        company.initiatePayment();
-        company.paymentFailed();
-        company.retryPayment(3);
+        company.initiateActivation();
+        company.activationFailed();
+        company.retryActivation(3);
         repository.update(company);
 
         Optional<Company> found = repository.findById(company.getId());

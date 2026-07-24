@@ -52,7 +52,7 @@ public class InitiatePayment implements InitiatePaymentUseCase {
                 company.getStripeCustomerReference(), price, sessionId);
 
         session.recordPaymentIntent(paymentIntent.id(), paymentIntent.clientSecret());
-        company.initiatePayment();
+        company.initiateActivation();
 
         sessionRepository.update(session);
         companyRepository.update(company);
