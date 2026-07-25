@@ -6,19 +6,19 @@ The service is live at:
 https://onboarding-production-e40a.up.railway.app
 ```
 
-No local setup needed. Use curl, Postman, or any HTTP client.
+No local setup needed. All flows run entirely via curl.
 
 ---
 
-## Stripe test cards
+## Prerequisites
 
-| Card number | Scenario |
-|---|---|
-| `4242 4242 4242 4242` | Payment succeeds immediately |
-| `4000 0000 0000 9995` | Card declined (insufficient funds) |
-| `4000 0025 0000 3155` | 3DS authentication required (needs frontend) |
+You need the Stripe test API key to confirm PaymentIntents. Set it once before running any flow:
 
-Use any future expiry date, any 3-digit CVC, any postal code.
+```bash
+export STRIPE_TEST_KEY=sk_test_...
+```
+
+Ask the team for the test key if you don't have it.
 
 ---
 
@@ -45,12 +45,14 @@ Response:
 }
 ```
 
-Save the `sessionId` — you need it for all subsequent calls.
+```bash
+export SESSION_ID=<sessionId from response>
+```
 
 ### 2. Initiate payment
 
 ```bash
-curl -s -X POST https://onboarding-production-e40a.up.railway.app/api/onboarding/{sessionId}/payment \
+curl -s -X POST https://onboarding-production-e40a.up.railway.app/api/onboarding/$SESSION_ID/payment \
   -H "Content-Type: application/json" \
   -d '{ "ipCountry": "US" }'
 ```
@@ -63,24 +65,30 @@ Response:
 }
 ```
 
-Save the `clientSecret`. If `ipCountry` is not in the pricing table, `pricingWarning` will contain a message and the price falls back to USD.
+The PaymentIntent ID is the part of `clientSecret` before `_secret_` (e.g. `pi_3Rxxx`).
 
-Supported country codes: `US`, `GB`, `DE`, `FR`, `CA`, `AU`.
+```bash
+export PI_ID=<pi_xxx from clientSecret>
+```
 
-### 3. Confirm the payment via Stripe Dashboard
+Supported country codes: `US`, `GB`, `DE`, `FR`, `CA`, `AU`. Unknown codes fall back to USD and set `pricingWarning`.
 
-1. Go to [Stripe Dashboard → PaymentIntents](https://dashboard.stripe.com/test/payments)
-2. Find the PaymentIntent that was just created
-3. Click **Confirm** and enter card `4242 4242 4242 4242`
-4. Stripe fires the `payment_intent.succeeded` webhook to the Railway service automatically
+### 3. Confirm the payment
+
+```bash
+curl -s -X POST https://api.stripe.com/v1/payment_intents/$PI_ID/confirm \
+  -u "$STRIPE_TEST_KEY": \
+  -d "payment_method=pm_card_visa"
+```
+
+Stripe fires the `payment_intent.succeeded` webhook to the Railway service automatically.
 
 ### 4. Poll status
 
 ```bash
-curl -s https://onboarding-production-e40a.up.railway.app/api/onboarding/{sessionId}/status
+curl -s https://onboarding-production-e40a.up.railway.app/api/onboarding/$SESSION_ID/status
 ```
 
-Response:
 ```json
 { "status": "ACTIVE" }
 ```
@@ -93,12 +101,16 @@ Follow steps 1–2 from Flow 1, then:
 
 ### 3. Confirm with a declining card
 
-In the Stripe Dashboard, confirm the PaymentIntent with card `4000 0000 0000 9995`.
+```bash
+curl -s -X POST https://api.stripe.com/v1/payment_intents/$PI_ID/confirm \
+  -u "$STRIPE_TEST_KEY": \
+  -d "payment_method=pm_card_chargeDeclinedInsufficientFunds"
+```
 
 ### 4. Check status → ACTIVATION_FAILED
 
 ```bash
-curl -s https://onboarding-production-e40a.up.railway.app/api/onboarding/{sessionId}/status
+curl -s https://onboarding-production-e40a.up.railway.app/api/onboarding/$SESSION_ID/status
 ```
 
 ```json
@@ -108,7 +120,7 @@ curl -s https://onboarding-production-e40a.up.railway.app/api/onboarding/{sessio
 ### 5. Retry payment
 
 ```bash
-curl -s -X POST https://onboarding-production-e40a.up.railway.app/api/onboarding/{sessionId}/retry \
+curl -s -X POST https://onboarding-production-e40a.up.railway.app/api/onboarding/$SESSION_ID/retry \
   -H "Content-Type: application/json" \
   -d '{ "ipCountry": "US" }'
 ```
@@ -122,16 +134,23 @@ Response:
 }
 ```
 
-Use the `newSessionId` for all subsequent status checks.
+```bash
+export SESSION_ID=<newSessionId>
+export PI_ID=<pi_yyy from new clientSecret>
+```
 
 ### 6. Confirm retry with a succeeding card
 
-In the Stripe Dashboard, confirm the new PaymentIntent with card `4242 4242 4242 4242`.
+```bash
+curl -s -X POST https://api.stripe.com/v1/payment_intents/$PI_ID/confirm \
+  -u "$STRIPE_TEST_KEY": \
+  -d "payment_method=pm_card_visa"
+```
 
 ### 7. Check status → ACTIVE
 
 ```bash
-curl -s https://onboarding-production-e40a.up.railway.app/api/onboarding/{newSessionId}/status
+curl -s https://onboarding-production-e40a.up.railway.app/api/onboarding/$SESSION_ID/status
 ```
 
 ```json
@@ -144,9 +163,9 @@ curl -s https://onboarding-production-e40a.up.railway.app/api/onboarding/{newSes
 
 The service allows a maximum of **3 payment attempts** per company.
 
-Repeat the decline flow (steps 1–5 of Flow 2) three times using the same original company registration, each time using the `newSessionId` returned from the previous retry.
-
-On the 3rd retry attempt, the retry call itself will return HTTP 422 and the company transitions to `REQUIRES_SUPPORT`:
+Repeat steps 1–5 of Flow 2 three times (reusing the same initial registration each time,
+updating `SESSION_ID` and `PI_ID` after each retry). On the 3rd retry call the service
+returns HTTP 422:
 
 ```json
 { "message": "Maximum payment attempts reached. Please contact support." }
@@ -161,9 +180,9 @@ Status check confirms:
 
 ## Flow 4: 3DS authentication (requires frontend)
 
-Confirming a 3DS PaymentIntent (`4000 0025 0000 3155`) requires a browser redirect handled
-by Stripe.js — it cannot be completed via curl or the Stripe Dashboard alone. This flow is
-intended for frontend integration testing once a UI is available.
+Confirming a 3DS PaymentIntent requires a browser redirect handled by Stripe.js — it cannot
+be completed via curl alone. This flow is intended for frontend integration testing once a
+UI is available.
 
 Expected status progression: `PENDING_ACTIVATION` → `ACTION_REQUIRED` (while 3DS is pending)
 → `ACTIVE` (once authenticated).

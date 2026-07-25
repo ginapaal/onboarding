@@ -27,21 +27,21 @@ class ProcessedStripeEventsJdbcRepositoryTest {
     private ProcessedStripeEventsJdbcRepository repository;
 
     @Test
-    void isEventAlreadyProcessed_returnsFalseForUnknownEvent() {
-        assertThat(repository.isEventAlreadyProcessed("evt_unknown")).isFalse();
+    void tryMarkEventProcessed_newEvent_returnsTrue() {
+        assertThat(repository.tryMarkEventProcessed("evt_new")).isTrue();
     }
 
     @Test
-    void markEventProcessed_thenIsAlreadyProcessed_returnsTrue() {
-        repository.markEventProcessed("evt_abc123");
+    void tryMarkEventProcessed_duplicateEvent_returnsFalse() {
+        repository.tryMarkEventProcessed("evt_dup");
 
-        assertThat(repository.isEventAlreadyProcessed("evt_abc123")).isTrue();
+        assertThat(repository.tryMarkEventProcessed("evt_dup")).isFalse();
     }
 
     @Test
-    void isEventAlreadyProcessed_doesNotAffectOtherEvents() {
-        repository.markEventProcessed("evt_one");
+    void tryMarkEventProcessed_doesNotAffectOtherEvents() {
+        repository.tryMarkEventProcessed("evt_one");
 
-        assertThat(repository.isEventAlreadyProcessed("evt_two")).isFalse();
+        assertThat(repository.tryMarkEventProcessed("evt_two")).isTrue();
     }
 }

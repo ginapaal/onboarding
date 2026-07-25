@@ -1,5 +1,6 @@
 package com.example.onboarding.domain.model;
 
+import com.example.onboarding.domain.exception.InvalidCompanyStateException;
 import com.example.onboarding.domain.exception.MaxRetriesExceededException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,7 +38,7 @@ class CompanyTest {
     void initiateActivation_fromInvalidStatus_throws() {
         company.initiateActivation();
         assertThatThrownBy(company::initiateActivation)
-                .isInstanceOf(IllegalStateException.class)
+                .isInstanceOf(InvalidCompanyStateException.class)
                 .hasMessageContaining("PENDING_ACTIVATION");
     }
 

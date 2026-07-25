@@ -1,5 +1,6 @@
 package com.example.onboarding.domain.model;
 
+import com.example.onboarding.domain.exception.InvalidCompanyStateException;
 import com.example.onboarding.domain.exception.MaxRetriesExceededException;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -76,7 +77,7 @@ public class Company {
 
     private void transitionTo(Predicate<CompanyStatus> allowedFromStatus, CompanyStatus next) {
         if (!allowedFromStatus.test(this.status)) {
-            throw new IllegalStateException("Cannot transition to " + next + " from " + this.status);
+            throw new InvalidCompanyStateException("Cannot transition to " + next + " from " + this.status);
         }
         this.status = next;
     }

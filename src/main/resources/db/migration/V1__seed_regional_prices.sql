@@ -1,4 +1,4 @@
-CREATE TABLE regional_prices (
+CREATE TABLE IF NOT EXISTS regional_prices (
     country_code           VARCHAR(10) PRIMARY KEY,
     amount_in_minor_units  BIGINT      NOT NULL,
     currency               CHAR(3)     NOT NULL

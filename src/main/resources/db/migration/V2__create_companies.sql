@@ -1,4 +1,4 @@
-CREATE TABLE companies (
+CREATE TABLE IF NOT EXISTS companies (
     id               BIGSERIAL    PRIMARY KEY,
     company_id       UUID         NOT NULL UNIQUE,
     company_name     VARCHAR(255) NOT NULL,

@@ -8,6 +8,7 @@ import com.example.onboarding.infrastructure.web.port.StripeWebhookPort;
 import com.stripe.exception.EventDataObjectDeserializationException;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.PaymentIntent;
+import com.stripe.model.StripeObject;
 import com.stripe.net.Webhook;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -50,9 +51,15 @@ public class StripeWebhookController implements StripeWebhookPort {
 
         PaymentIntent paymentIntent;
         try {
-            paymentIntent = (PaymentIntent) stripeEvent.getDataObjectDeserializer().deserializeUnsafe();
+            StripeObject deserialized = stripeEvent.getDataObjectDeserializer().deserializeUnsafe();
+            if (!(deserialized instanceof PaymentIntent pi)) {
+                log.error("Unexpected or null Stripe event data for event {}", stripeEvent.getId());
+                return ResponseEntity.internalServerError().build();
+            }
+            paymentIntent = pi;
         } catch (EventDataObjectDeserializationException e) {
-            throw new IllegalStateException("Could not deserialize Stripe event data", e);
+            log.error("Could not deserialize Stripe event {}", stripeEvent.getId(), e);
+            return ResponseEntity.internalServerError().build();
         }
 
         handlePaymentEvent.execute(new StripeWebhookEvent(

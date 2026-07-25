@@ -13,21 +13,13 @@ public class ProcessedStripeEventsJdbcRepository implements ProcessedStripeEvent
 
     private final NamedParameterJdbcTemplate jdbc;
 
-    private static final String EXISTS = """
-            SELECT EXISTS(SELECT 1 FROM processed_stripe_events WHERE event_id = :eventId)
-            """;
-
-    private static final String INSERT = """
+    private static final String INSERT_IF_ABSENT = """
             INSERT INTO processed_stripe_events (event_id) VALUES (:eventId)
+            ON CONFLICT (event_id) DO NOTHING
             """;
 
     @Override
-    public boolean isEventAlreadyProcessed(String eventId) {
-        return Boolean.TRUE.equals(jdbc.queryForObject(EXISTS, new MapSqlParameterSource("eventId", eventId), Boolean.class));
-    }
-
-    @Override
-    public void markEventProcessed(String eventId) {
-        jdbc.update(INSERT, new MapSqlParameterSource("eventId", eventId));
+    public boolean tryMarkEventProcessed(String eventId) {
+        return jdbc.update(INSERT_IF_ABSENT, new MapSqlParameterSource("eventId", eventId)) > 0;
     }
 }

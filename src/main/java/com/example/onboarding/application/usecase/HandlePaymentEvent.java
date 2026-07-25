@@ -24,8 +24,8 @@ public class HandlePaymentEvent implements HandlePaymentEventUseCase {
     @Override
     @Transactional
     public void execute(StripeWebhookEvent event) {
-        if (alreadyProcessed(event)) {
-            return;
+        if (!processedEventRepository.tryMarkEventProcessed(event.eventId())) {
+            return; // duplicate delivery — already processed
         }
 
         OnboardingSession session = sessionRepository.findByPaymentIntentId(event.paymentIntentId())
@@ -43,10 +43,5 @@ public class HandlePaymentEvent implements HandlePaymentEventUseCase {
         }
 
         companyRepository.update(company);
-        processedEventRepository.markEventProcessed(event.eventId());
-    }
-
-    private boolean alreadyProcessed(StripeWebhookEvent event) {
-        return processedEventRepository.isEventAlreadyProcessed(event.eventId());
     }
 }
