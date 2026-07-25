@@ -3,9 +3,9 @@ spring:
     name: onboarding
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/onboarding
-    username: onboarding
-    password: onboarding
+    url: jdbc:postgresql://${PGHOST:localhost}:${PGPORT:5432}/${PGDATABASE:onboarding}
+    username: ${PGUSER:onboarding}
+    password: ${PGPASSWORD:onboarding}
     driver-class-name: org.postgresql.Driver
 
   flyway:
@@ -18,7 +18,7 @@ stripe:
 
 onboarding:
   payment:
-    max-retries: 3
+    max-attempts: 3
 
 server:
   port: 8080

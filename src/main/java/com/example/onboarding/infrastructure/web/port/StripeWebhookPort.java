@@ -1,4 +1,4 @@
-package com.example.onboarding.infrastructure.web;
+package com.example.onboarding.infrastructure.web.port;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;

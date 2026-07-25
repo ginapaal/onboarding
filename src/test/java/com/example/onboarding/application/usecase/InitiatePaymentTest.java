@@ -12,7 +12,7 @@ import com.example.onboarding.domain.model.OnboardingSession;
 import com.example.onboarding.domain.model.PaymentIntentResult;
 import com.example.onboarding.domain.model.OnboardingSessionId;
 import com.example.onboarding.domain.model.StripePaymentIntentId;
-import com.example.onboarding.domain.port.inbound.InitiatePaymentResult;
+import com.example.onboarding.domain.model.InitiatePaymentResult;
 import com.example.onboarding.domain.port.outbound.CompanyRepository;
 import com.example.onboarding.domain.port.outbound.PaymentGateway;
 import com.example.onboarding.domain.port.outbound.PricingRepository;
@@ -136,7 +136,6 @@ class InitiatePaymentTest {
 
         assertThat(company.getStatus()).isEqualTo(CompanyStatus.PENDING_ACTIVATION);
         assertThat(session.getPaymentIntentId()).isEqualTo(new StripePaymentIntentId("pi_test123"));
-        assertThat(session.getClientSecret()).isEqualTo("pi_test123_secret");
         verify(sessionRepository).update(session);
         verify(companyRepository).update(company);
     }

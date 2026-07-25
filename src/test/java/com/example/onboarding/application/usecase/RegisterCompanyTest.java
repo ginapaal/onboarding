@@ -3,7 +3,7 @@ package com.example.onboarding.application.usecase;
 import com.example.onboarding.domain.model.Company;
 import com.example.onboarding.domain.model.ContactInfo;
 import com.example.onboarding.domain.model.OnboardingSession;
-import com.example.onboarding.domain.port.inbound.RegistrationResult;
+import com.example.onboarding.domain.model.RegistrationResult;
 import com.example.onboarding.domain.port.outbound.CompanyRepository;
 import com.example.onboarding.domain.port.outbound.OnboardingSessionRepository;
 import org.junit.jupiter.api.Test;

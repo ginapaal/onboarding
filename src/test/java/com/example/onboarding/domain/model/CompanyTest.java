@@ -118,12 +118,14 @@ class CompanyTest {
     }
 
     @Test
-    void retryActivation_whenMaxRetriesExceeded_throws() {
+    void retryActivation_whenMaxAttemptsExceeded_throws() {
         company.initiateActivation();
         company.activationFailed();
-        company.retryActivation(1);
+        company.retryActivation(3); // retry 1
         company.activationFailed();
-        assertThatThrownBy(() -> company.retryActivation(1))
+        company.retryActivation(3); // retry 2 — maxAttempts=3 allows 2 retries
+        company.activationFailed();
+        assertThatThrownBy(() -> company.retryActivation(3)) // retry 3 → throws
                 .isInstanceOf(MaxRetriesExceededException.class);
     }
 

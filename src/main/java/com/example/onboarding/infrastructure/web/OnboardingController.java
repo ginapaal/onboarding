@@ -3,16 +3,21 @@ package com.example.onboarding.infrastructure.web;
 import com.example.onboarding.domain.model.CompanyStatus;
 import com.example.onboarding.domain.model.ContactInfo;
 import com.example.onboarding.domain.model.OnboardingSessionId;
+import com.example.onboarding.domain.model.InitiatePaymentResult;
+import com.example.onboarding.domain.model.RegistrationResult;
+import com.example.onboarding.domain.model.RetryPaymentResult;
 import com.example.onboarding.domain.port.inbound.GetOnboardingStatusUseCase;
-import com.example.onboarding.domain.port.inbound.InitiatePaymentResult;
 import com.example.onboarding.domain.port.inbound.InitiatePaymentUseCase;
 import com.example.onboarding.domain.port.inbound.RegisterCompanyUseCase;
-import com.example.onboarding.domain.port.inbound.RegistrationResult;
+import com.example.onboarding.domain.port.inbound.RetryPaymentUseCase;
+import com.example.onboarding.infrastructure.web.port.OnboardingPort;
 import com.example.onboarding.infrastructure.web.dto.InitiatePaymentRequest;
 import com.example.onboarding.infrastructure.web.dto.InitiatePaymentResponse;
 import com.example.onboarding.infrastructure.web.dto.OnboardingStatusResponse;
 import com.example.onboarding.infrastructure.web.dto.RegisterRequest;
 import com.example.onboarding.infrastructure.web.dto.RegisterResponse;
+import com.example.onboarding.infrastructure.web.dto.RetryPaymentRequest;
+import com.example.onboarding.infrastructure.web.dto.RetryPaymentResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +31,7 @@ public class OnboardingController implements OnboardingPort {
 
     private final RegisterCompanyUseCase registerCompany;
     private final InitiatePaymentUseCase initiatePayment;
+    private final RetryPaymentUseCase retryPayment;
     private final GetOnboardingStatusUseCase getOnboardingStatus;
 
     @Override
@@ -40,6 +46,13 @@ public class OnboardingController implements OnboardingPort {
     public ResponseEntity<InitiatePaymentResponse> handleInitiatePayment(UUID sessionId, InitiatePaymentRequest request) {
         InitiatePaymentResult result = initiatePayment.execute(new OnboardingSessionId(sessionId), request.ipCountry());
         return ResponseEntity.accepted().body(new InitiatePaymentResponse(result.clientSecret(), result.pricingWarning()));
+    }
+
+    @Override
+    public ResponseEntity<RetryPaymentResponse> handleRetryPayment(UUID sessionId, RetryPaymentRequest request) {
+        RetryPaymentResult result = retryPayment.execute(new OnboardingSessionId(sessionId), request.ipCountry());
+        return ResponseEntity.accepted().body(
+                new RetryPaymentResponse(result.newSessionId().value(), result.clientSecret(), result.pricingWarning()));
     }
 
     @Override

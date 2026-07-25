@@ -56,7 +56,6 @@ class OnboardingSessionJdbcRepositoryTest {
         assertThat(found).isPresent();
         assertThat(found.get().getCompanyId()).isEqualTo(companyId);
         assertThat(found.get().getPaymentIntentId()).isNull();
-        assertThat(found.get().getClientSecret()).isNull();
     }
 
     @Test
@@ -69,20 +68,19 @@ class OnboardingSessionJdbcRepositoryTest {
         OnboardingSession session = OnboardingSession.create(OnboardingSessionId.generate(), companyId);
         sessionRepository.insert(session);
 
-        session.recordPaymentIntent(new StripePaymentIntentId("pi_test123"), "pi_test123_secret");
+        session.recordPaymentIntent(new StripePaymentIntentId("pi_test123"));
         sessionRepository.update(session);
 
         Optional<OnboardingSession> found = sessionRepository.findById(session.getId());
         assertThat(found).isPresent();
         assertThat(found.get().getPaymentIntentId()).isEqualTo(new StripePaymentIntentId("pi_test123"));
-        assertThat(found.get().getClientSecret()).isEqualTo("pi_test123_secret");
     }
 
     @Test
     void findByPaymentIntentId_returnsSessionAfterPaymentRecorded() {
         OnboardingSession session = OnboardingSession.create(OnboardingSessionId.generate(), companyId);
         sessionRepository.insert(session);
-        session.recordPaymentIntent(new StripePaymentIntentId("pi_test123"), "pi_test123_secret");
+        session.recordPaymentIntent(new StripePaymentIntentId("pi_test123"));
         sessionRepository.update(session);
 
         Optional<OnboardingSession> found = sessionRepository.findByPaymentIntentId(new StripePaymentIntentId("pi_test123"));

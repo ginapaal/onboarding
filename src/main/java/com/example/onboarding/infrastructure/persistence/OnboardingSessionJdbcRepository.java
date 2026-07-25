@@ -21,26 +21,28 @@ public class OnboardingSessionJdbcRepository implements OnboardingSessionReposit
     private final NamedParameterJdbcTemplate jdbc;
 
     private static final String INSERT = """
-            INSERT INTO onboarding_sessions (session_id, company_id, payment_intent_id, client_secret)
-            VALUES (:sessionId, :companyId, :paymentIntentId, :clientSecret)
+            INSERT INTO onboarding_sessions (session_id, company_id, payment_intent_id)
+            VALUES (:sessionId, (SELECT id FROM companies WHERE company_id = :companyId), :paymentIntentId)
             """;
 
     private static final String UPDATE = """
             UPDATE onboarding_sessions
-            SET payment_intent_id = :paymentIntentId, client_secret = :clientSecret
+            SET payment_intent_id = :paymentIntentId
             WHERE session_id = :sessionId
             """;
 
     private static final String FIND_BY_ID = """
-            SELECT session_id, company_id, payment_intent_id, client_secret
-            FROM onboarding_sessions
-            WHERE session_id = :sessionId
+            SELECT s.session_id, c.company_id, s.payment_intent_id
+            FROM onboarding_sessions s
+            JOIN companies c ON s.company_id = c.id
+            WHERE s.session_id = :sessionId
             """;
 
     private static final String FIND_BY_PAYMENT_INTENT_ID = """
-            SELECT session_id, company_id, payment_intent_id, client_secret
-            FROM onboarding_sessions
-            WHERE payment_intent_id = :paymentIntentId
+            SELECT s.session_id, c.company_id, s.payment_intent_id
+            FROM onboarding_sessions s
+            JOIN companies c ON s.company_id = c.id
+            WHERE s.payment_intent_id = :paymentIntentId
             """;
 
     @Override
@@ -48,16 +50,14 @@ public class OnboardingSessionJdbcRepository implements OnboardingSessionReposit
         jdbc.update(INSERT, new MapSqlParameterSource()
                 .addValue("sessionId", session.getId().value())
                 .addValue("companyId", session.getCompanyId().value())
-                .addValue("paymentIntentId", session.getPaymentIntentId() != null ? session.getPaymentIntentId().value() : null)
-                .addValue("clientSecret", session.getClientSecret()));
+                .addValue("paymentIntentId", session.getPaymentIntentId() != null ? session.getPaymentIntentId().value() : null));
     }
 
     @Override
     public void update(OnboardingSession session) {
         jdbc.update(UPDATE, new MapSqlParameterSource()
                 .addValue("sessionId", session.getId().value())
-                .addValue("paymentIntentId", session.getPaymentIntentId() != null ? session.getPaymentIntentId().value() : null)
-                .addValue("clientSecret", session.getClientSecret()));
+                .addValue("paymentIntentId", session.getPaymentIntentId() != null ? session.getPaymentIntentId().value() : null));
     }
 
     @Override
@@ -85,8 +85,7 @@ public class OnboardingSessionJdbcRepository implements OnboardingSessionReposit
         return new OnboardingSession(
                 new OnboardingSessionId(rs.getObject("session_id", UUID.class)),
                 new CompanyId(rs.getObject("company_id", UUID.class)),
-                paymentIntentId,
-                rs.getString("client_secret")
+                paymentIntentId
         );
     };
 }

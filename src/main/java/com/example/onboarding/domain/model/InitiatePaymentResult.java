@@ -1,3 +1,3 @@
-package com.example.onboarding.domain.port.inbound;
+package com.example.onboarding.domain.model;
 
 public record InitiatePaymentResult(String clientSecret, String pricingWarning) {}

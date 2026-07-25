@@ -51,7 +51,7 @@ class HandlePaymentEventTest {
 
         OnboardingSessionId sessionId = OnboardingSessionId.generate();
         session = OnboardingSession.create(sessionId, companyId);
-        session.recordPaymentIntent(paymentIntentId, "pi_test123_secret");
+        session.recordPaymentIntent(paymentIntentId);
 
         company = Company.register(companyId, "Acme Corp", new ContactInfo("admin@acme.com", "Jane", "Doe"));
         company.initiateActivation();

@@ -62,9 +62,9 @@ public class Company {
         );
     }
 
-    public void retryActivation(int maxRetries) {
-        if (retryCount >= maxRetries) {
-            throw new MaxRetriesExceededException(id, retryCount);
+    public void retryActivation(int maxAttempts) {
+        if (retryCount >= maxAttempts - 1) {
+            throw new MaxRetriesExceededException(maxAttempts);
         }
         transitionTo(current -> current == CompanyStatus.ACTIVATION_FAILED, CompanyStatus.PENDING_ACTIVATION);
         retryCount++;

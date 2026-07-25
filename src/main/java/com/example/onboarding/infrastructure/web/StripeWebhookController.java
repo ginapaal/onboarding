@@ -4,6 +4,8 @@ import com.example.onboarding.domain.model.StripePaymentIntentId;
 import com.example.onboarding.domain.model.StripeWebhookEvent;
 import com.example.onboarding.domain.model.StripeWebhookEventType;
 import com.example.onboarding.domain.port.inbound.HandlePaymentEventUseCase;
+import com.example.onboarding.infrastructure.web.port.StripeWebhookPort;
+import com.stripe.exception.EventDataObjectDeserializationException;
 import com.stripe.exception.SignatureVerificationException;
 import com.stripe.model.PaymentIntent;
 import com.stripe.net.Webhook;
@@ -46,9 +48,12 @@ public class StripeWebhookController implements StripeWebhookPort {
             return ResponseEntity.ok().build();
         }
 
-        PaymentIntent paymentIntent = (PaymentIntent) stripeEvent.getDataObjectDeserializer()
-                .getObject()
-                .orElseThrow(() -> new IllegalStateException("Could not deserialize Stripe event data"));
+        PaymentIntent paymentIntent;
+        try {
+            paymentIntent = (PaymentIntent) stripeEvent.getDataObjectDeserializer().deserializeUnsafe();
+        } catch (EventDataObjectDeserializationException e) {
+            throw new IllegalStateException("Could not deserialize Stripe event data", e);
+        }
 
         handlePaymentEvent.execute(new StripeWebhookEvent(
                 stripeEvent.getId(),

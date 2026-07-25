@@ -1,10 +1,12 @@
-package com.example.onboarding.infrastructure.web;
+package com.example.onboarding.infrastructure.web.port;
 
 import com.example.onboarding.infrastructure.web.dto.InitiatePaymentRequest;
 import com.example.onboarding.infrastructure.web.dto.InitiatePaymentResponse;
 import com.example.onboarding.infrastructure.web.dto.OnboardingStatusResponse;
 import com.example.onboarding.infrastructure.web.dto.RegisterRequest;
 import com.example.onboarding.infrastructure.web.dto.RegisterResponse;
+import com.example.onboarding.infrastructure.web.dto.RetryPaymentRequest;
+import com.example.onboarding.infrastructure.web.dto.RetryPaymentResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,6 +25,11 @@ public interface OnboardingPort {
     ResponseEntity<InitiatePaymentResponse> handleInitiatePayment(
             @PathVariable UUID sessionId,
             @RequestBody @Valid InitiatePaymentRequest request);
+
+    @PostMapping("/api/onboarding/{sessionId}/retry")
+    ResponseEntity<RetryPaymentResponse> handleRetryPayment(
+            @PathVariable UUID sessionId,
+            @RequestBody @Valid RetryPaymentRequest request);
 
     @GetMapping("/api/onboarding/{sessionId}/status")
     ResponseEntity<OnboardingStatusResponse> handleGetStatus(@PathVariable UUID sessionId);

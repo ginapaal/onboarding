@@ -1,6 +1,7 @@
 package com.example.onboarding.infrastructure.web;
 
 import com.example.onboarding.domain.exception.CompanyNotFoundException;
+import org.springframework.dao.DataIntegrityViolationException;
 import com.example.onboarding.domain.exception.MaxRetriesExceededException;
 import com.example.onboarding.domain.exception.PaymentGatewayException;
 import com.example.onboarding.domain.exception.PaymentGatewayUnavailableException;
@@ -13,6 +14,12 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new ErrorResponse("A company with this name and admin email is already registered."));
+    }
 
     @ExceptionHandler(SessionNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleSessionNotFound(SessionNotFoundException ex) {
