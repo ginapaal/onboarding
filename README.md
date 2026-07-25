@@ -71,17 +71,8 @@ Copy the `whsec_...` secret printed by the CLI and set it as `STRIPE_WEBHOOK_SEC
 | `POST` | `/api/onboarding/register` | Register company + admin user |
 | `POST` | `/api/onboarding/{sessionId}/payment` | Create Stripe PaymentIntent, return clientSecret |
 | `GET`  | `/api/onboarding/{sessionId}/status` | Poll current onboarding status |
+| `POST` | `/api/onboarding/{sessionId}/retry` | Retry payment after a decline (new session + new PaymentIntent) |
 | `POST` | `/webhooks/stripe` | Stripe webhook receiver (signature-verified) |
-
-## Stripe Test Cards
-
-| Card number | Scenario |
-|---|---|
-| `4242 4242 4242 4242` | Payment succeeds immediately |
-| `4000 0025 0000 3155` | 3DS authentication required |
-| `4000 0000 0000 9995` | Insufficient funds (decline) |
-
-Use any future expiry date, any 3-digit CVC, and any postal code.
 
 ## Project Structure
 
@@ -94,7 +85,7 @@ src/main/java/com/example/onboarding/
 ├── application/
 │   └── usecase/          # One class per use case
 └── infrastructure/
-    ├── persistence/      # JPA entities, repositories, mappers
+    ├── persistence/      # JDBC adapters, domain↔row mappers
     ├── stripe/           # Stripe SDK adapter
     └── web/              # Controllers, request/response DTOs
 ```

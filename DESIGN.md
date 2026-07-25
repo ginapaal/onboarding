@@ -165,7 +165,7 @@ Same pattern for `PaymentGateway`:
 // domain/port/PaymentGateway.java  ← the domain's requirement, in plain Java
 public interface PaymentGateway {
     CustomerReference createCustomer(ContactInfo contact, CompanyId companyId);
-    PaymentIntent createPaymentIntent(CustomerReference customer, Money amount);
+    PaymentIntentResult createPaymentIntent(CustomerReference customer, Money amount, OnboardingSessionId sessionId);
 }
 
 // infrastructure/stripe/StripePaymentGateway.java  ← Stripe SDK confined here
@@ -529,3 +529,29 @@ owned by the onboarding service.
 | In-process domain events | Yes | Outbox pattern | Simpler for this scope; limitation is named explicitly |
 | Idempotency via DB table | Yes | In-memory set | Survives restarts; correct under concurrent webhook delivery |
 | Stripe real test mode | Yes | Mock | Demonstrates real contract understanding; webhook signature verification is non-trivial |
+
+---
+
+## AI Usage
+
+Claude was used throughout the build as a collaborative design partner — generating architecture plans, writing code, and drafting documentation.
+
+### How AI was used
+
+- **Architecture and design:** Planning the hexagonal structure, aggregate boundaries, port/adapter naming, and state machine before writing any code. AI produced initial proposals; each was discussed, challenged, and often revised.
+- **Code generation:** Implementing the domain model, use cases, JDBC repositories, Stripe adapter, webhook handler, and tests. AI generated first drafts; each was reviewed and refined before being accepted.
+- **Documentation:** Drafting DESIGN.md, STRIPE.md, and supporting docs. AI wrote initial versions; accuracy of architectural claims was verified against the actual code.
+
+### Where AI output required verification
+
+**1. Test database — H2 vs PostgreSQL**
+
+AI initially scaffolded integration tests using an H2 in-memory database. On review, this was identified as a risk: H2 and PostgreSQL have different SQL dialects, type handling, and function support — tests passing on H2 can mask failures that only appear in production. All JDBC repository tests were replaced with Testcontainers running a real `postgres:16-alpine` container. Had this gone unverified, the test suite would have provided false confidence while hiding real compatibility issues.
+
+**2. Domain naming — status enum leaked payment concepts**
+
+AI named the `Company` status states `PENDING_PAYMENT` and `PAYMENT_FAILED`. These leak the payment mechanism into the company lifecycle — a domain model should not describe its own state in terms of a specific integration. Renamed to `PENDING_ACTIVATION` and `ACTIVATION_FAILED`, which describe what is happening to the *company*, not what Stripe returned.
+
+**3. Price field naming — `amountInCents` is currency-specific**
+
+AI generated `amountInCents` for the `Money` value object. This is incorrect: "cents" is not the minor unit of every currency — JPY has no minor unit, KWD uses three decimal places. The correct ISO 4217 term is `amountInMinorUnits`. Accepting this without checking would have baked an inaccurate assumption into the domain model.
