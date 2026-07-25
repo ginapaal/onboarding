@@ -101,6 +101,40 @@ src/main/java/com/example/onboarding/
 
 See [DESIGN.md](./DESIGN.md) for architecture decisions and tradeoffs.
 
+## Deployment
+
+The service is hosted on [Railway](https://railway.app). Railway provisions a managed PostgreSQL
+database and injects connection variables (`PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`,
+`PGPASSWORD`) automatically — no Docker needed in production.
+
+### Environment variables (set in Railway dashboard → service → Variables)
+
+| Variable | Value |
+|---|---|
+| `STRIPE_API_KEY` | Your Stripe test or live secret key |
+| `STRIPE_WEBHOOK_SECRET` | Webhook signing secret from the Stripe dashboard |
+
+### Stripe webhooks in production
+
+In the [Stripe Dashboard](https://dashboard.stripe.com/test/webhooks), add an endpoint pointing
+to your Railway service URL:
+
+```
+https://<your-railway-url>/webhooks/stripe
+```
+
+Subscribe to the events: `payment_intent.succeeded`, `payment_intent.payment_failed`,
+`payment_intent.requires_action`.
+
+Copy the signing secret Railway surfaces after saving and set it as `STRIPE_WEBHOOK_SECRET`.
+The Stripe CLI (`stripe listen`) is only needed for local development.
+
+### Deploys
+
+Railway redeploys automatically on every push to the connected branch — no manual restarts needed.
+
+---
+
 ## Running Tests
 
 ```bash
