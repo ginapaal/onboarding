@@ -471,9 +471,9 @@ time. There is nothing to authenticate against.
 
 | Endpoint | Auth | Reason |
 |---|---|---|
-| `POST /api/onboarding/register` | None | User does not exist yet |
-| `POST /api/onboarding/{sessionId}/payment` | None (sessionId is unguessable) | No identity established yet |
-| `GET /api/onboarding/{sessionId}/status` | None (sessionId is unguessable) | Same |
+| `POST /api/v1/onboarding/companies/register` | None | User does not exist yet |
+| `POST /api/v1/onboarding/{sessionId}/payments` | None (sessionId is unguessable) | No identity established yet |
+| `GET /api/v1/onboarding/{sessionId}/status` | None (sessionId is unguessable) | Same |
 | `POST /webhooks/stripe` | Stripe signature verification | Handled by `Stripe-Signature` header, not user auth |
 
 The `sessionId` is a UUID v4, which provides implicit protection against enumeration — but it
@@ -483,9 +483,9 @@ is not a substitute for real authentication.
 
 Once identity is a first-class concern, the following endpoints must be protected:
 
-- `POST /api/onboarding/{sessionId}/payment` — should require a bearer token proving the caller
+- `POST /api/v1/onboarding/{sessionId}/payments` — should require a bearer token proving the caller
   is the admin who initiated this registration
-- `GET /api/onboarding/{sessionId}/status` — same
+- `GET /api/v1/onboarding/{sessionId}/status` — same
 
 The recommended approach is a JWT issued by a dedicated identity service (or Auth0/Okta) once
 the admin's email is verified after registration. Spring Security's OAuth2 resource server can
@@ -511,7 +511,7 @@ owned by the onboarding service.
 | Omission | Reason | What production would need |
 |---|---|---|
 | Frontend / Stripe.js | Out of scope for backend slice | React or plain JS with `@stripe/stripe-js` confirming the PaymentIntent |
-| Auth / JWT | Onboarding is a pre-auth flow; no identity exists yet. See Security section. | JWT issued by a dedicated identity service; Spring Security OAuth2 resource server to validate on payment and status endpoints |
+| Auth / JWT | Out of scope for MVP. The payment and status endpoints need bearer token protection once built. See Security section. | JWT issued by a dedicated identity service; Spring Security OAuth2 resource server to validate on payment and status endpoints |
 | Transactional Outbox | Adds infrastructure complexity (outbox table + poller) not justified without real event consumers | Scheduled poller or Debezium CDC on `outbox_events` publishing to Kafka |
 | Email notifications | Infrastructure concern, not domain | Spring Mail or SendGrid on `CompanyActivated` event |
 | Rate limiting | Ops concern | Bucket4j or API gateway |

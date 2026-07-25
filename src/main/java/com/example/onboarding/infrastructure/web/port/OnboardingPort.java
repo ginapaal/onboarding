@@ -18,19 +18,19 @@ import java.util.UUID;
 
 public interface OnboardingPort {
 
-    @PostMapping("/api/onboarding/register")
+    @PostMapping("/api/v1/onboarding/companies/register")
     ResponseEntity<RegisterResponse> handleRegister(@RequestBody @Valid RegisterRequest request);
 
-    @PostMapping("/api/onboarding/{sessionId}/payment")
+    @PostMapping("/api/v1/onboarding/{sessionId}/payments")
     ResponseEntity<InitiatePaymentResponse> handleInitiatePayment(
             @PathVariable UUID sessionId,
             @RequestBody @Valid InitiatePaymentRequest request);
 
-    @PostMapping("/api/onboarding/{sessionId}/retry")
+    @PostMapping("/api/v1/onboarding/{sessionId}/payments/retry")
     ResponseEntity<RetryPaymentResponse> handleRetryPayment(
             @PathVariable UUID sessionId,
             @RequestBody @Valid RetryPaymentRequest request);
 
-    @GetMapping("/api/onboarding/{sessionId}/status")
+    @GetMapping("/api/v1/onboarding/{sessionId}/status")
     ResponseEntity<OnboardingStatusResponse> handleGetStatus(@PathVariable UUID sessionId);
 }

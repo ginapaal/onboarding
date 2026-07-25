@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Self-Serve Onboarding — Technical Walkthrough</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/theme/black.min.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/highlight/monokai.min.css" />
+
+  <style>
+    :root {
+      --accent:  #4ade80;
+      --warn:    #fb923c;
+      --danger:  #f87171;
+      --muted:   #94a3b8;
+      --surface: #1e293b;
+    }
+
+    .reveal { font-size: 32px; }
+
+    /* ── title slide ── */
+    .slide-title h1  { font-size: 1.6em; margin-bottom: .15em; }
+    .slide-title h3  { color: var(--muted); font-weight: 400; margin-bottom: .6em; }
+    .slide-title .stack { color: var(--muted); font-size: .55em; letter-spacing: .08em; }
+
+    /* ── section label ── */
+    .label {
+      display: inline-block;
+      font-size: .42em;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 4px;
+      padding: 2px 10px;
+      margin-bottom: .45em;
+    }
+
+    /* ── hex diagram ── */
+    .hex-diagram {
+      display: flex;
+      align-items: stretch;
+      gap: 6px;
+      font-size: .52em;
+      margin: .5em auto 0;
+      width: 100%;
+    }
+    .hex-zone {
+      flex: 1;
+      background: var(--surface);
+      border-radius: 6px;
+      padding: .55em .65em;
+      line-height: 1.65;
+    }
+    .hex-zone .zone-title {
+      font-size: .85em;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      margin-bottom: .35em;
+    }
+    .hz-domain  .zone-title { color: #60a5fa; }
+    .hz-app     .zone-title { color: #facc15; }
+    .hz-infra   .zone-title { color: #c084fc; }
+    .hex-arrow  { display: flex; align-items: center; color: var(--muted); font-size: .6em; }
+
+    /* ── two-column layout ── */
+    .cols { display: flex; gap: 1.4em; align-items: flex-start; }
+    .col  { flex: 1; }
+
+    /* ── status pill badges ── */
+    .pill {
+      display: inline-block;
+      font-size: .5em;
+      border-radius: 999px;
+      padding: 2px 12px;
+      font-weight: 600;
+      vertical-align: middle;
+      margin-left: .3em;
+    }
+    .pill-green  { background: #166534; color: #bbf7d0; }
+    .pill-orange { background: #7c2d12; color: #fed7aa; }
+    .pill-red    { background: #7f1d1d; color: #fecaca; }
+    .pill-purple { background: #4a1d96; color: #e9d5ff; }
+    .pill-blue   { background: #1e3a5f; color: #bfdbfe; }
+
+    /* ── failure table ── */
+    .fail-table { width: 100%; border-collapse: collapse; font-size: .52em; }
+    .fail-table th {
+      background: var(--surface);
+      padding: .35em .6em;
+      text-align: left;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .fail-table td { padding: .35em .6em; border-top: 1px solid #334155; vertical-align: top; }
+    .fail-table tr:hover td { background: #0f172a; }
+
+    /* ── tradeoff cards ── */
+    .tradeoff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .6em; font-size: .5em; }
+    .tc {
+      background: var(--surface);
+      border-radius: 6px;
+      padding: .65em .75em;
+      line-height: 1.55;
+    }
+    .tc-label { color: var(--accent); font-weight: 700; font-size: .9em; margin-bottom: .2em; }
+    .tc-alt   { color: var(--muted); }
+
+    /* ── scope built / skipped ── */
+    .scope-list { font-size: .56em; line-height: 1.8; }
+    .built  { color: var(--accent); }
+    .built::before  { content: "✓  "; }
+    .skipped { color: var(--muted); }
+    .skipped::before { content: "–  "; }
+
+    /* ── AI usage cards ── */
+    .ai-card {
+      background: var(--surface);
+      border-left: 3px solid var(--warn);
+      border-radius: 0 6px 6px 0;
+      padding: .5em .75em;
+      margin-bottom: .5em;
+      font-size: .52em;
+      line-height: 1.6;
+    }
+    .ai-card strong { color: var(--warn); }
+
+    /* ── code blocks ── */
+    .reveal pre { margin: .4em 0; font-size: .5em; }
+    .reveal code { font-size: .9em; }
+
+    /* ── utility ── */
+    .muted  { color: var(--muted); }
+    .accent { color: var(--accent); }
+    .warn   { color: var(--warn);   }
+  </style>
+</head>
+<body>
+<div class="reveal">
+<div class="slides">
+
+<!-- ─────────────────────────────────────────────
+     SLIDE 1 — TITLE
+───────────────────────────────────────────── -->
+<section class="slide-title" data-background-gradient="radial-gradient(ellipse at 60% 40%, #0f2027 0%, #0a0a0a 100%)">
+  <h1>Self-Serve Business Onboarding</h1>
+  <h3>A focused end-to-end backend slice</h3>
+  <p class="stack">Java 21 · Spring Boot · Stripe · PostgreSQL · Railway</p>
+  <br/>
+  <p class="muted" style="font-size:.5em; margin-top:1em;">
+    Use <kbd style="background:#334155;padding:2px 8px;border-radius:4px;">→</kbd> to advance &nbsp;·&nbsp;
+    <kbd style="background:#334155;padding:2px 8px;border-radius:4px;">F</kbd> for fullscreen
+  </p>
+</section>
+
+<!-- ─────────────────────────────────────────────
+     SLIDE 2 — PROBLEM STATEMENT
+───────────────────────────────────────────── -->
+<section data-background-gradient="radial-gradient(ellipse at 40% 60%, #0f2027 0%, #0a0a0a 100%)" style="display:flex; flex-direction:column; justify-content:center; height:100%;">
+  <div class="label">The problem</div>
+  <br/>
+  <blockquote style="font-size:.85em; line-height:1.8; border-left:4px solid var(--accent); padding-left:.75em; margin:0 auto .8em; max-width:80%; font-style:normal; text-align:left;">
+    As a company admin, I need to register my company and complete a subscription payment,
+    so that my account activates immediately on success, remains accessible while awaiting
+    async payment confirmation, and lets me retry a declined payment without having to start over.
+  </blockquote>
+  <div style="font-size:.47em; text-align:left; color:var(--muted); line-height:2; margin-left:.2em;">
+    <span style="color:#94a3b8;">Scope note: &nbsp;</span>card details are never stored — they go directly to Stripe.
+    3DS state handling is built; completing the redirect requires Stripe.js (no frontend in this slice).
+  </div>
+  <br/>
+  <div style="display:flex; gap:2em; justify-content:center; font-size:.5em;">
+    <span class="muted">Integration: <span class="accent">Stripe Payments</span></span>
+    <span class="muted">Stack: <span class="accent">Java 21 · Spring Boot · PostgreSQL</span></span>
+    <span class="muted">Live on: <span class="accent">Railway</span></span>
+  </div>
+
+  <aside class="notes">
+    The three outcomes drive the interesting engineering:
+    immediate activation is straightforward — it's the async webhook path and failure recovery that require careful design.
+    3DS: the state machine handles ACTION_REQUIRED correctly, but actually completing the redirect needs Stripe.js.
+    "Without starting over" means the Company record persists through payment failures — retry creates a new session, not a new company.
+  </aside>
+</section>
+
+<!-- ─────────────────────────────────────────────
+     SLIDE 3 — ARCHITECTURE
+───────────────────────────────────────────── -->
+<section>
+  <div class="label">01 · Architecture</div>
+  <h2 style="margin-bottom:.3em;">Hexagonal (Ports &amp; Adapters)</h2>
+
+  <div class="hex-diagram">
+    <div class="hex-zone hz-domain">
+      <div class="zone-title">Domain</div>
+      <div>Company (aggregate root)</div>
+      <div>OnboardingSession</div>
+      <div>AdminUser (entity)</div>
+      <div>State machine</div>
+      <div>Value objects</div>
+      <div style="margin-top:.4em;" class="muted">No framework deps</div>
+    </div>
+    <div class="hex-arrow">→</div>
+    <div class="hex-zone hz-app">
+      <div class="zone-title">Application</div>
+      <div>RegisterCompany</div>
+      <div>InitiatePayment</div>
+      <div>HandlePaymentEvent</div>
+      <div style="margin-top:.4em;" class="muted">One class · one execute()</div>
+    </div>
+    <div class="hex-arrow">→</div>
+    <div class="hex-zone hz-infra">
+      <div class="zone-title">Infrastructure</div>
+      <div>OnboardingController</div>
+      <div>WebhookController</div>
+      <div>CompanyJdbcRepository</div>
+      <div>StripePaymentGateway</div>
+      <div style="margin-top:.4em;" class="muted">Depends on domain, never reverse</div>
+    </div>
+  </div>
+
+  <div style="font-size:.52em; margin-top:.7em; color:var(--muted);">
+    <span class="accent">Why:</span> domain is testable in plain Java · Stripe is swappable · delivery mechanism is a detail
+  </div>
+
+  <aside class="notes">
+    The slice I chose is the full onboarding flow: register → initiate payment → receive webhook → activate.
+    I used hexagonal architecture because the core business rules — state transitions, retry limits, aggregate invariants —
+    should be verifiable without a database, without Stripe, and without Spring. The architecture enforces that.
+    Every boundary is crossed through an interface; infrastructure implements those interfaces, never the other way around.
+  </aside>
+</section>
+
+<!-- ─────────────────────────────────────────────
+     SLIDE 3 — INTEGRATION BOUNDARIES
+───────────────────────────────────────────── -->
+<section>
+  <div class="label">02 · Integration Boundaries</div>
+  <h2 style="margin-bottom:.3em; font-size:1.4em;">Connecting to the outside world</h2>
+
+  <div style="font-size:.48em; margin-bottom:.5em;">
+    <div class="tc" style="border-left:3px solid #4ade80; text-align:left;">
+      <div class="tc-label" style="color:#4ade80; font-size:1em;">REST API — what we expose</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:.3em .8em; margin-top:.3em; line-height:1.9;">
+        <span><code style="color:#86efac;">POST</code> <code>/api/v1/onboarding/companies/register</code></span>
+        <span><code style="color:#86efac;">POST</code> <code>/api/v1/onboarding/{sessionId}/payments</code></span>
+        <span><code style="color:#86efac;">POST</code> <code>/api/v1/onboarding/{sessionId}/payments/retry</code></span>
+        <span><code style="color:#7dd3fc;">GET</code> &nbsp;<code>/api/v1/onboarding/{sessionId}/status</code></span>
+        <span><code style="color:#fbbf24;">POST</code> <code>/webhooks/stripe</code></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="cols" style="align-items:stretch; font-size:.48em;">
+    <div class="col" style="display:flex; flex-direction:column;">
+
+      <div class="tc" style="border-left:3px solid #60a5fa; text-align:left; flex:1;">
+        <div class="tc-label" style="color:#60a5fa; font-size:1em;">Stripe — external API</div>
+        <pre style="font-size:1em;"><code class="language-java" data-trim>// domain defines what it needs
+interface PaymentGateway {
+  CustomerReference createCustomer(...);
+  PaymentIntentResult createPaymentIntent(...);
+}</code></pre>
+        <ul style="line-height:1.7; margin:.4em 0 0 1.2em;">
+          <li>All Stripe SDK code confined to <code>StripePaymentGateway</code></li>
+          <li>Tests use <code>MockPaymentGateway</code> — same interface, so a mismatch is a compile error</li>
+          <li>Webhooks: signature-verified · duplicates ignored via <code>processed_stripe_events</code></li>
+        </ul>
+      </div>
+
+    </div>
+    <div class="col" style="display:flex; flex-direction:column; gap:.6em;">
+
+      <div class="tc" style="border-left:3px solid #c084fc; text-align:left; flex:1;">
+        <div class="tc-label" style="color:#c084fc; font-size:1em;">Persistence — PostgreSQL</div>
+        <ul style="line-height:1.7; margin:.4em 0 0 1.2em;">
+          <li><code>CompanyRepository</code> &amp; <code>OnboardingSessionRepository</code> — interfaces in the domain</li>
+          <li>JDBC adapters implement them — domain has no database knowledge</li>
+          <li>No ORM — reconstitution logic is explicit; schema managed by Flyway</li>
+        </ul>
+      </div>
+
+
+    </div>
+  </div>
+
+  <aside class="notes">
+    The REST API is the inbound boundary — how clients drive the system. The webhook endpoint is also inbound but
+    owned by Stripe, not our clients. The two columns below show the outbound boundaries — what the system depends on.
+    The common thread: the domain defines what it needs through an interface, infrastructure delivers it.
+    The domain never imports a Stripe class, a JDBC class, or a Spring class — that's what keeps it testable in plain Java.
+    On the MockPaymentGateway: because it implements the real interface, the compiler tells you immediately if the
+    mock is out of sync with production. You can't accidentally test against something that no longer matches real behaviour.
+  </aside>
+</section>
+
+<!-- ─────────────────────────────────────────────
+     SLIDE 4 — FAILURE SCENARIOS
+───────────────────────────────────────────── -->
+<section>
+  <div class="label">03 · Failure Scenarios &amp; Recovery</div>
+  <h2 style="margin-bottom:.3em; font-size:1.4em;">What breaks and what the backend returns</h2>
+
+  <table class="fail-table">
+    <thead>
+      <tr>
+        <th>Scenario</th>
+        <th>Backend response</th>
+        <th>Company status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Invalid / missing fields</td>
+        <td><code>400</code> · <code>{"message": "Validation failed: field: reason; ..."}</code></td>
+        <td>No change</td>
+      </tr>
+      <tr>
+        <td>Stripe API unavailable</td>
+        <td><code>503</code> · <code>{"message": "Payment service unavailable. Please try again later."}</code></td>
+        <td><span class="pill pill-blue">INCOMPLETE</span></td>
+      </tr>
+      <tr>
+        <td>Card declined</td>
+        <td>Stripe webhook processed · <code>200</code> to Stripe</td>
+        <td><span class="pill pill-red">ACTIVATION_FAILED</span></td>
+      </tr>
+      <tr>
+        <td>3DS required</td>
+        <td>Stripe webhook processed · <code>200</code> to Stripe</td>
+        <td><span class="pill pill-orange">ACTION_REQUIRED</span></td>
+      </tr>
+      <tr>
+        <td>Retry limit reached (3)</td>
+        <td><code>422</code> · <code>{"message": "Maximum payment attempts reached. Please contact support."}</code></td>
+        <td><span class="pill pill-purple">REQUIRES_SUPPORT</span></td>
+      </tr>
+      <tr>
+        <td>Duplicate webhook</td>
+        <td><code>200</code> empty body — event ID already in <code>processed_stripe_events</code>, no processing</td>
+        <td>No change</td>
+      </tr>
+      <tr>
+        <td>Webhook before session commits</td>
+        <td><code>404</code> to Stripe · Stripe retries automatically up to 72 h</td>
+        <td>Delayed · resolves on retry</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p style="font-size:.42em; color:var(--muted); margin-top:.55em; text-align:left;">
+    There is no frontend in this slice. The HTTP response codes, error messages, and company statuses are all intentional signals —
+    a client uses the response code to handle errors immediately, and polls <code>GET /api/v1/onboarding/{sessionId}/status</code> to track async state changes and decide what to render.
+  </p>
+
+  <aside class="notes">
+    The state machine on the Company aggregate is what makes failure handling clean — every invalid transition throws
+    a domain exception, so there's no way to accidentally activate a company whose payment failed.
+    The retry limit is a production safety measure: unlimited retries would trigger Stripe's card-hammering detection
+    and damage the account's risk score. Three attempts then escalate to support.
+  </aside>
+</section>
+
+<!-- ─────────────────────────────────────────────
+     SLIDE 5 — TRADEOFFS
+───────────────────────────────────────────── -->
+<section>
+  <div class="label">04 · Tradeoffs &amp; Decision-Making</div>
+  <h2 style="margin-bottom:.4em;">Key decisions and why</h2>
+
+  <div class="tradeoff-grid">
+    <div class="tc">
+      <div class="tc-label">OnboardingSession — separate aggregate</div>
+      <div>Each retry creates a new session → Company history is never mutated</div>
+      <div class="tc-alt">Alt: entity inside Company · simpler, but muddies audit trail</div>
+    </div>
+    <div class="tc">
+      <div class="tc-label">JDBC over JPA</div>
+      <div>Explicit SQL · no dirty-check surprises · aggregate boundaries stay clean</div>
+      <div class="tc-alt">Alt: JPA · less boilerplate, but fights DDD at aggregate edges</div>
+    </div>
+    <div class="tc">
+      <div class="tc-label">Domain events — designed, not built</div>
+      <div>Event classes and listeners are out of scope — no consumers exist yet to justify them</div>
+      <div class="tc-alt">Production: in-process publisher + Transactional Outbox for guaranteed delivery</div>
+    </div>
+    <div class="tc">
+      <div class="tc-label">Client-supplied <code>ipCountry</code></div>
+      <div>No geolocation infra needed. Risk: client can claim cheaper region</div>
+      <div class="tc-alt">Alt: server IP lookup (MaxMind) · tamper-proof, adds infra dependency</div>
+    </div>
+  </div>
+
+  <p style="font-size:.45em; color:var(--muted); margin-top:.6em;">
+    To a PM: "We chose the simpler approach in each case and named the risk explicitly. Each has a clear upgrade path and the hexagonal boundary means swapping an implementation is a one-class change."
+  </p>
+
+  <aside class="notes">
+    For each tradeoff I tried to identify: what the simpler choice gives us, what it costs, and what the upgrade path looks like.
+    The hexagonal boundary is the key enabler — because infrastructure implements a domain-owned port, swapping from
+    client ipCountry to MaxMind, or adding a Transactional Outbox when events are eventually built,
+    requires no changes to the domain or application layers.
+  </aside>
+</section>
+
+<!-- ─────────────────────────────────────────────
+     SLIDE 6 — SCOPE
+───────────────────────────────────────────── -->
+<section>
+  <div class="label">05 · Scope Decisions</div>
+  <h2 style="margin-bottom:.35em;">What I built vs. what I left out</h2>
+
+  <div class="cols">
+    <div class="col">
+      <p style="font-size:.52em; font-weight:700; color:var(--accent); margin-bottom:.3em;">BUILT</p>
+      <div class="scope-list">
+        <div class="built">Domain model + state machine</div>
+        <div class="built">RegisterCompany · InitiatePayment · HandlePaymentEvent</div>
+        <div class="built">Stripe adapter + webhook handler</div>
+        <div class="built">REST API (register / payment / status / retry)</div>
+        <div class="built">Flyway schema migrations</div>
+        <div class="built">JDBC repositories (Testcontainers)</div>
+        <div class="built">ArchUnit architecture tests</div>
+        <div class="built">Live on Railway</div>
+      </div>
+    </div>
+    <div class="col">
+      <p style="font-size:.52em; font-weight:700; color:var(--muted); margin-bottom:.3em;">INTENTIONALLY LEFT OUT</p>
+      <div class="scope-list">
+        <div class="skipped">Frontend / Stripe.js — UI decisions not made yet</div>
+        <div class="skipped">Auth / JWT — out of scope for MVP; payment &amp; status endpoints need bearer token protection once built</div>
+        <div class="skipped">Domain events — designed in, not implemented; no consumers exist yet</div>
+        <div class="skipped">Transactional Outbox — depends on domain events; would be the production delivery mechanism</div>
+        <div class="skipped">Email notifications — infrastructure concern, not domain</div>
+        <div class="skipped">Rate limiting — ops concern, add at gateway layer</div>
+      </div>
+    </div>
+  </div>
+
+  <p style="font-size:.45em; color:var(--muted); margin-top:.65em;">
+    The slice criteria: a complete path through the system with one integration explored in depth. Register → pay → activate is that path. Everything excluded has a clear hook to add it without touching domain logic.
+  </p>
+
+  <aside class="notes">
+    The hardest scope call was auth. Onboarding is a pre-auth flow — the user doesn't have an identity yet,
+    so issuing a JWT on registration would be the wrong design. Auth belongs to a separate bounded context.
+    The payment and status endpoints are protected by the unguessability of the sessionId UUID for now,
+    and the design doc notes exactly which endpoints need bearer tokens once the auth slice is built.
+  </aside>
+</section>
+
+<!-- ─────────────────────────────────────────────
+     SLIDE 7 — AI USAGE
+───────────────────────────────────────────── -->
+<section>
+  <div class="label">06 · AI Tool Usage</div>
+  <h2 style="margin-bottom:.35em;">Where AI helped — and where I pushed back</h2>
+
+  <p style="font-size:.5em; color:var(--muted); margin-bottom:.5em;">
+    Used Claude as a collaborative design partner throughout — architecture, code generation, documentation drafting. Every output was reviewed before being accepted.
+  </p>
+
+  <div class="ai-card">
+    <strong>Risk: H2 in-memory test database</strong><br/>
+    AI scaffolded integration tests using H2. H2 and PostgreSQL have different SQL dialects and type handling — tests passing on H2 can mask failures that only surface in production. Replaced with Testcontainers (<code>postgres:16-alpine</code>) so tests run against the real engine.
+  </div>
+  <div class="ai-card">
+    <strong>Risk: status enum leaked payment concepts</strong><br/>
+    AI named states <code>PENDING_PAYMENT</code> / <code>PAYMENT_FAILED</code>. These tie the domain model to a specific integration. Renamed to <code>PENDING_ACTIVATION</code> / <code>ACTIVATION_FAILED</code> — the company describes its own lifecycle, not what Stripe returned.
+  </div>
+  <div class="ai-card">
+    <strong>Risk: <code>amountInCents</code> is currency-specific</strong><br/>
+    AI generated <code>amountInCents</code>. "Cents" doesn't apply to JPY (no minor unit) or KWD (3 decimal places). Corrected to <code>amountInMinorUnits</code> — the ISO 4217 standard term.
+  </div>
+
+  <aside class="notes">
+    The theme across all three: AI produces plausible-sounding output that passes a quick read but fails on precision.
+    H2 tests compile and run — you'd only discover the problem in production. The naming issues would have baked
+    wrong assumptions into the domain model permanently. The verification step was reading the actual spec
+    (PostgreSQL docs, ISO 4217) rather than trusting the AI's confident-sounding suggestion.
+  </aside>
+</section>
+
+</div><!-- /.slides -->
+</div><!-- /.reveal -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/reveal.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/highlight/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/5.1.0/plugin/notes/notes.min.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    transition: 'fade',
+    transitionSpeed: 'fast',
+    controls: true,
+    progress: true,
+    center: false,
+    plugins: [ RevealHighlight, RevealNotes ]
+  });
+</script>
+</body>
+</html>

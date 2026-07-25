@@ -68,10 +68,10 @@ Copy the `whsec_...` secret printed by the CLI and set it as `STRIPE_WEBHOOK_SEC
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api/onboarding/register` | Register company + admin user |
-| `POST` | `/api/onboarding/{sessionId}/payment` | Create Stripe PaymentIntent, return clientSecret |
-| `GET`  | `/api/onboarding/{sessionId}/status` | Poll current onboarding status |
-| `POST` | `/api/onboarding/{sessionId}/retry` | Retry payment after a decline (new session + new PaymentIntent) |
+| `POST` | `/api/v1/onboarding/companies/register` | Register company + admin user |
+| `POST` | `/api/v1/onboarding/{sessionId}/payments` | Create Stripe PaymentIntent, return clientSecret |
+| `GET`  | `/api/v1/onboarding/{sessionId}/status` | Poll current onboarding status |
+| `POST` | `/api/v1/onboarding/{sessionId}/payments/retry` | Retry payment after a decline (new session + new PaymentIntent) |
 | `POST` | `/webhooks/stripe` | Stripe webhook receiver (signature-verified) |
 
 ## Project Structure

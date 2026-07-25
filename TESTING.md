@@ -27,7 +27,7 @@ Ask the team for the test key if you don't have it.
 ### 1. Register a company
 
 ```bash
-curl -s -X POST https://onboarding-production-e40a.up.railway.app/api/onboarding/register \
+curl -s -X POST https://onboarding-production-e40a.up.railway.app/api/v1/onboarding/companies/register \
   -H "Content-Type: application/json" \
   -d '{
     "companyName": "Acme Corp",
@@ -52,7 +52,7 @@ export SESSION_ID=<sessionId from response>
 ### 2. Initiate payment
 
 ```bash
-curl -s -X POST https://onboarding-production-e40a.up.railway.app/api/onboarding/$SESSION_ID/payment \
+curl -s -X POST https://onboarding-production-e40a.up.railway.app/api/v1/onboarding/$SESSION_ID/payments \
   -H "Content-Type: application/json" \
   -d '{ "ipCountry": "US" }'
 ```
@@ -86,7 +86,7 @@ Stripe fires the `payment_intent.succeeded` webhook to the Railway service autom
 ### 4. Poll status
 
 ```bash
-curl -s https://onboarding-production-e40a.up.railway.app/api/onboarding/$SESSION_ID/status
+curl -s https://onboarding-production-e40a.up.railway.app/api/v1/onboarding/$SESSION_ID/status
 ```
 
 ```json
@@ -110,7 +110,7 @@ curl -s -X POST https://api.stripe.com/v1/payment_intents/$PI_ID/confirm \
 ### 4. Check status → ACTIVATION_FAILED
 
 ```bash
-curl -s https://onboarding-production-e40a.up.railway.app/api/onboarding/$SESSION_ID/status
+curl -s https://onboarding-production-e40a.up.railway.app/api/v1/onboarding/$SESSION_ID/status
 ```
 
 ```json
@@ -120,7 +120,7 @@ curl -s https://onboarding-production-e40a.up.railway.app/api/onboarding/$SESSIO
 ### 5. Retry payment
 
 ```bash
-curl -s -X POST https://onboarding-production-e40a.up.railway.app/api/onboarding/$SESSION_ID/retry \
+curl -s -X POST https://onboarding-production-e40a.up.railway.app/api/v1/onboarding/$SESSION_ID/payments/retry \
   -H "Content-Type: application/json" \
   -d '{ "ipCountry": "US" }'
 ```
@@ -150,7 +150,7 @@ curl -s -X POST https://api.stripe.com/v1/payment_intents/$PI_ID/confirm \
 ### 7. Check status → ACTIVE
 
 ```bash
-curl -s https://onboarding-production-e40a.up.railway.app/api/onboarding/$SESSION_ID/status
+curl -s https://onboarding-production-e40a.up.railway.app/api/v1/onboarding/$SESSION_ID/status
 ```
 
 ```json
@@ -194,7 +194,7 @@ Expected status progression: `PENDING_ACTIVATION` → `ACTION_REQUIRED` (while 3
 Missing or invalid fields return HTTP 400:
 
 ```bash
-curl -s -X POST https://onboarding-production-e40a.up.railway.app/api/onboarding/register \
+curl -s -X POST https://onboarding-production-e40a.up.railway.app/api/v1/onboarding/companies/register \
   -H "Content-Type: application/json" \
   -d '{ "companyName": "Acme" }'
 ```
