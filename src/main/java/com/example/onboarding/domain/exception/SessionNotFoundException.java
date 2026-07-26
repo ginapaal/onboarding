@@ -1,7 +1,7 @@
 package com.example.onboarding.domain.exception;
 
 import com.example.onboarding.domain.model.OnboardingSessionId;
-import com.example.onboarding.domain.model.StripePaymentIntentId;
+import com.example.onboarding.domain.model.PaymentIntentId;
 
 public class SessionNotFoundException extends RuntimeException {
 
@@ -9,7 +9,7 @@ public class SessionNotFoundException extends RuntimeException {
         super("Onboarding session not found: " + id.value());
     }
 
-    public SessionNotFoundException(StripePaymentIntentId paymentIntentId) {
+    public SessionNotFoundException(PaymentIntentId paymentIntentId) {
         super("Onboarding session not found for payment intent: " + paymentIntentId.value());
     }
 }

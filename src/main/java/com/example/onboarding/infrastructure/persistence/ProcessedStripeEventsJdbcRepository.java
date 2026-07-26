@@ -19,7 +19,7 @@ public class ProcessedStripeEventsJdbcRepository implements ProcessedStripeEvent
             """;
 
     @Override
-    public boolean tryMarkEventProcessed(String eventId) {
+    public boolean recordIfNew(String eventId) {
         return jdbc.update(INSERT_IF_ABSENT, new MapSqlParameterSource("eventId", eventId)) > 0;
     }
 }

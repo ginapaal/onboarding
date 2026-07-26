@@ -27,21 +27,21 @@ class ProcessedStripeEventsJdbcRepositoryTest {
     private ProcessedStripeEventsJdbcRepository repository;
 
     @Test
-    void tryMarkEventProcessed_newEvent_returnsTrue() {
-        assertThat(repository.tryMarkEventProcessed("evt_new")).isTrue();
+    void recordIfNew_newEvent_returnsTrue() {
+        assertThat(repository.recordIfNew("evt_new")).isTrue();
     }
 
     @Test
-    void tryMarkEventProcessed_duplicateEvent_returnsFalse() {
-        repository.tryMarkEventProcessed("evt_dup");
+    void recordIfNew_duplicateEvent_returnsFalse() {
+        repository.recordIfNew("evt_dup");
 
-        assertThat(repository.tryMarkEventProcessed("evt_dup")).isFalse();
+        assertThat(repository.recordIfNew("evt_dup")).isFalse();
     }
 
     @Test
-    void tryMarkEventProcessed_doesNotAffectOtherEvents() {
-        repository.tryMarkEventProcessed("evt_one");
+    void recordIfNew_doesNotAffectOtherEvents() {
+        repository.recordIfNew("evt_one");
 
-        assertThat(repository.tryMarkEventProcessed("evt_two")).isTrue();
+        assertThat(repository.recordIfNew("evt_two")).isTrue();
     }
 }

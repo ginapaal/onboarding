@@ -4,7 +4,7 @@ import com.example.onboarding.domain.exception.CompanyNotFoundException;
 import com.example.onboarding.domain.exception.SessionNotFoundException;
 import com.example.onboarding.domain.model.Company;
 import com.example.onboarding.domain.model.OnboardingSession;
-import com.example.onboarding.domain.model.StripeWebhookEvent;
+import com.example.onboarding.domain.model.PaymentEvent;
 import com.example.onboarding.domain.port.inbound.HandlePaymentEventUseCase;
 import com.example.onboarding.domain.port.outbound.CompanyRepository;
 import com.example.onboarding.domain.port.outbound.OnboardingSessionRepository;
@@ -23,9 +23,9 @@ public class HandlePaymentEvent implements HandlePaymentEventUseCase {
 
     @Override
     @Transactional
-    public void execute(StripeWebhookEvent event) {
-        if (!processedEventRepository.tryMarkEventProcessed(event.eventId())) {
-            return; // duplicate delivery — already processed
+    public void execute(PaymentEvent event) {
+        if (!processedEventRepository.recordIfNew(event.eventId())) {
+            return;
         }
 
         OnboardingSession session = sessionRepository.findByPaymentIntentId(event.paymentIntentId())

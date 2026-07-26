@@ -13,7 +13,7 @@ import com.example.onboarding.domain.model.OnboardingSession;
 import com.example.onboarding.domain.model.OnboardingSessionId;
 import com.example.onboarding.domain.model.PaymentIntentResult;
 import com.example.onboarding.domain.model.RetryPaymentResult;
-import com.example.onboarding.domain.model.StripePaymentIntentId;
+import com.example.onboarding.domain.model.PaymentIntentId;
 import com.example.onboarding.domain.port.outbound.CompanyRepository;
 import com.example.onboarding.domain.port.outbound.OnboardingSessionRepository;
 import com.example.onboarding.domain.port.outbound.PaymentGateway;
@@ -62,7 +62,7 @@ class RetryPaymentTest {
         sessionId = OnboardingSessionId.generate();
         companyId = CompanyId.generate();
         session = OnboardingSession.create(sessionId, companyId);
-        session.recordPaymentIntent(new StripePaymentIntentId("pi_old"));
+        session.recordPaymentIntent(new PaymentIntentId("pi_old"));
 
         company = Company.register(companyId, "Acme Corp", new ContactInfo("admin@acme.com", "Jane", "Doe"));
         company.initiateActivation();
@@ -70,7 +70,7 @@ class RetryPaymentTest {
 
         usdPrice = new Money(9900, Currency.getInstance("USD"));
         customer = new CustomerReference("cus_test123");
-        paymentIntent = new PaymentIntentResult(new StripePaymentIntentId("pi_new123"), "pi_new123_secret");
+        paymentIntent = new PaymentIntentResult(new PaymentIntentId("pi_new123"), "pi_new123_secret");
     }
 
     @Test

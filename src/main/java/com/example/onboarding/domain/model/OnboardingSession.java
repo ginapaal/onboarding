@@ -9,13 +9,13 @@ public class OnboardingSession {
 
     private final OnboardingSessionId id;
     private final CompanyId companyId;
-    private StripePaymentIntentId paymentIntentId;
+    private PaymentIntentId paymentIntentId;
 
     public static OnboardingSession create(OnboardingSessionId id, CompanyId companyId) {
         return new OnboardingSession(id, companyId, null);
     }
 
-    public void recordPaymentIntent(StripePaymentIntentId paymentIntentId) {
+    public void recordPaymentIntent(PaymentIntentId paymentIntentId) {
         if (this.paymentIntentId != null) {
             throw new IllegalStateException("Payment intent already recorded for session " + id.value());
         }

@@ -3,7 +3,7 @@ package com.example.onboarding.infrastructure.persistence;
 import com.example.onboarding.domain.model.CompanyId;
 import com.example.onboarding.domain.model.OnboardingSession;
 import com.example.onboarding.domain.model.OnboardingSessionId;
-import com.example.onboarding.domain.model.StripePaymentIntentId;
+import com.example.onboarding.domain.model.PaymentIntentId;
 import com.example.onboarding.domain.port.outbound.OnboardingSessionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.RowMapper;
@@ -69,7 +69,7 @@ public class OnboardingSessionJdbcRepository implements OnboardingSessionReposit
     }
 
     @Override
-    public Optional<OnboardingSession> findByPaymentIntentId(StripePaymentIntentId paymentIntentId) {
+    public Optional<OnboardingSession> findByPaymentIntentId(PaymentIntentId paymentIntentId) {
         return jdbc.query(FIND_BY_PAYMENT_INTENT_ID,
                 new MapSqlParameterSource("paymentIntentId", paymentIntentId.value()),
                 SESSION_ROW_MAPPER)
@@ -78,8 +78,8 @@ public class OnboardingSessionJdbcRepository implements OnboardingSessionReposit
 
     private static final RowMapper<OnboardingSession> SESSION_ROW_MAPPER = (rs, rowNum) -> {
         String paymentIntentIdValue = rs.getString("payment_intent_id");
-        StripePaymentIntentId paymentIntentId = paymentIntentIdValue != null
-                ? new StripePaymentIntentId(paymentIntentIdValue)
+        PaymentIntentId paymentIntentId = paymentIntentIdValue != null
+                ? new PaymentIntentId(paymentIntentIdValue)
                 : null;
 
         return new OnboardingSession(

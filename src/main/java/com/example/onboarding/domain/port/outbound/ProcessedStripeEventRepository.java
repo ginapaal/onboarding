@@ -3,10 +3,9 @@ package com.example.onboarding.domain.port.outbound;
 public interface ProcessedStripeEventRepository {
 
     /**
-     * Atomically records an event as processed.
+     * Records the event as processed if not already seen.
      *
-     * @return true if the event was newly inserted (first delivery),
-     *         false if it was already present (duplicate delivery)
+     * @return true if this is the first delivery, false if it is a duplicate
      */
-    boolean tryMarkEventProcessed(String eventId);
+    boolean recordIfNew(String eventId);
 }

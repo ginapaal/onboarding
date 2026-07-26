@@ -2,7 +2,7 @@ package com.example.onboarding.domain.port.outbound;
 
 import com.example.onboarding.domain.model.OnboardingSession;
 import com.example.onboarding.domain.model.OnboardingSessionId;
-import com.example.onboarding.domain.model.StripePaymentIntentId;
+import com.example.onboarding.domain.model.PaymentIntentId;
 
 import java.util.Optional;
 
@@ -14,5 +14,5 @@ public interface OnboardingSessionRepository {
 
     Optional<OnboardingSession> findById(OnboardingSessionId id);
 
-    Optional<OnboardingSession> findByPaymentIntentId(StripePaymentIntentId paymentIntentId);
+    Optional<OnboardingSession> findByPaymentIntentId(PaymentIntentId paymentIntentId);
 }

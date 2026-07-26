@@ -5,7 +5,7 @@ import com.example.onboarding.domain.model.CompanyId;
 import com.example.onboarding.domain.model.ContactInfo;
 import com.example.onboarding.domain.model.OnboardingSession;
 import com.example.onboarding.domain.model.OnboardingSessionId;
-import com.example.onboarding.domain.model.StripePaymentIntentId;
+import com.example.onboarding.domain.model.PaymentIntentId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -68,22 +68,22 @@ class OnboardingSessionJdbcRepositoryTest {
         OnboardingSession session = OnboardingSession.create(OnboardingSessionId.generate(), companyId);
         sessionRepository.insert(session);
 
-        session.recordPaymentIntent(new StripePaymentIntentId("pi_test123"));
+        session.recordPaymentIntent(new PaymentIntentId("pi_test123"));
         sessionRepository.update(session);
 
         Optional<OnboardingSession> found = sessionRepository.findById(session.getId());
         assertThat(found).isPresent();
-        assertThat(found.get().getPaymentIntentId()).isEqualTo(new StripePaymentIntentId("pi_test123"));
+        assertThat(found.get().getPaymentIntentId()).isEqualTo(new PaymentIntentId("pi_test123"));
     }
 
     @Test
     void findByPaymentIntentId_returnsSessionAfterPaymentRecorded() {
         OnboardingSession session = OnboardingSession.create(OnboardingSessionId.generate(), companyId);
         sessionRepository.insert(session);
-        session.recordPaymentIntent(new StripePaymentIntentId("pi_test123"));
+        session.recordPaymentIntent(new PaymentIntentId("pi_test123"));
         sessionRepository.update(session);
 
-        Optional<OnboardingSession> found = sessionRepository.findByPaymentIntentId(new StripePaymentIntentId("pi_test123"));
+        Optional<OnboardingSession> found = sessionRepository.findByPaymentIntentId(new PaymentIntentId("pi_test123"));
         assertThat(found).isPresent();
         assertThat(found.get().getId()).isEqualTo(session.getId());
     }

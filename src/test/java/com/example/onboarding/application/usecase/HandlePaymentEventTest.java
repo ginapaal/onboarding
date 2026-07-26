@@ -7,9 +7,9 @@ import com.example.onboarding.domain.model.CompanyStatus;
 import com.example.onboarding.domain.model.ContactInfo;
 import com.example.onboarding.domain.model.OnboardingSession;
 import com.example.onboarding.domain.model.OnboardingSessionId;
-import com.example.onboarding.domain.model.StripePaymentIntentId;
-import com.example.onboarding.domain.model.StripeWebhookEvent;
-import com.example.onboarding.domain.model.StripeWebhookEventType;
+import com.example.onboarding.domain.model.PaymentIntentId;
+import com.example.onboarding.domain.model.PaymentEvent;
+import com.example.onboarding.domain.model.PaymentEventType;
 import com.example.onboarding.domain.port.outbound.CompanyRepository;
 import com.example.onboarding.domain.port.outbound.OnboardingSessionRepository;
 import com.example.onboarding.domain.port.outbound.ProcessedStripeEventRepository;
@@ -39,14 +39,14 @@ class HandlePaymentEventTest {
     @InjectMocks
     private HandlePaymentEvent handlePaymentEvent;
 
-    private StripePaymentIntentId paymentIntentId;
+    private PaymentIntentId paymentIntentId;
     private OnboardingSession session;
     private Company company;
 
     @BeforeEach
     void setUp() {
         CompanyId companyId = CompanyId.generate();
-        paymentIntentId = new StripePaymentIntentId("pi_test123");
+        paymentIntentId = new PaymentIntentId("pi_test123");
 
         OnboardingSessionId sessionId = OnboardingSessionId.generate();
         session = OnboardingSession.create(sessionId, companyId);
@@ -61,9 +61,9 @@ class HandlePaymentEventTest {
 
     @Test
     void execute_paymentSucceeded_activatesCompany() {
-        when(processedEventRepository.tryMarkEventProcessed("evt_1")).thenReturn(true);
+        when(processedEventRepository.recordIfNew("evt_1")).thenReturn(true);
 
-        handlePaymentEvent.execute(event("evt_1", StripeWebhookEventType.PAYMENT_SUCCEEDED));
+        handlePaymentEvent.execute(event("evt_1", PaymentEventType.PAYMENT_SUCCEEDED));
 
         assertThat(company.getStatus()).isEqualTo(CompanyStatus.ACTIVE);
         verify(companyRepository).update(company);
@@ -71,9 +71,9 @@ class HandlePaymentEventTest {
 
     @Test
     void execute_paymentFailed_setsActivationFailed() {
-        when(processedEventRepository.tryMarkEventProcessed("evt_2")).thenReturn(true);
+        when(processedEventRepository.recordIfNew("evt_2")).thenReturn(true);
 
-        handlePaymentEvent.execute(event("evt_2", StripeWebhookEventType.PAYMENT_FAILED));
+        handlePaymentEvent.execute(event("evt_2", PaymentEventType.PAYMENT_FAILED));
 
         assertThat(company.getStatus()).isEqualTo(CompanyStatus.ACTIVATION_FAILED);
         verify(companyRepository).update(company);
@@ -81,9 +81,9 @@ class HandlePaymentEventTest {
 
     @Test
     void execute_paymentProcessing_setsActivationProcessing() {
-        when(processedEventRepository.tryMarkEventProcessed("evt_3")).thenReturn(true);
+        when(processedEventRepository.recordIfNew("evt_3")).thenReturn(true);
 
-        handlePaymentEvent.execute(event("evt_3", StripeWebhookEventType.PAYMENT_PROCESSING));
+        handlePaymentEvent.execute(event("evt_3", PaymentEventType.PAYMENT_PROCESSING));
 
         assertThat(company.getStatus()).isEqualTo(CompanyStatus.ACTIVATION_PROCESSING);
         verify(companyRepository).update(company);
@@ -91,9 +91,9 @@ class HandlePaymentEventTest {
 
     @Test
     void execute_paymentCanceled_fromPendingActivation_setsActivationCanceled() {
-        when(processedEventRepository.tryMarkEventProcessed("evt_4")).thenReturn(true);
+        when(processedEventRepository.recordIfNew("evt_4")).thenReturn(true);
 
-        handlePaymentEvent.execute(event("evt_4", StripeWebhookEventType.PAYMENT_CANCELED));
+        handlePaymentEvent.execute(event("evt_4", PaymentEventType.PAYMENT_CANCELED));
 
         assertThat(company.getStatus()).isEqualTo(CompanyStatus.ACTIVATION_CANCELED);
         verify(companyRepository).update(company);
@@ -101,9 +101,9 @@ class HandlePaymentEventTest {
 
     @Test
     void execute_actionRequired_setsActionRequired() {
-        when(processedEventRepository.tryMarkEventProcessed("evt_5")).thenReturn(true);
+        when(processedEventRepository.recordIfNew("evt_5")).thenReturn(true);
 
-        handlePaymentEvent.execute(event("evt_5", StripeWebhookEventType.ACTION_REQUIRED));
+        handlePaymentEvent.execute(event("evt_5", PaymentEventType.ACTION_REQUIRED));
 
         assertThat(company.getStatus()).isEqualTo(CompanyStatus.ACTION_REQUIRED);
         verify(companyRepository).update(company);
@@ -111,23 +111,23 @@ class HandlePaymentEventTest {
 
     @Test
     void execute_duplicateEvent_skipsProcessing() {
-        when(processedEventRepository.tryMarkEventProcessed("evt_dup")).thenReturn(false);
+        when(processedEventRepository.recordIfNew("evt_dup")).thenReturn(false);
 
-        handlePaymentEvent.execute(event("evt_dup", StripeWebhookEventType.PAYMENT_SUCCEEDED));
+        handlePaymentEvent.execute(event("evt_dup", PaymentEventType.PAYMENT_SUCCEEDED));
 
         verify(companyRepository, never()).update(company);
     }
 
     @Test
     void execute_sessionNotFound_throws() {
-        when(processedEventRepository.tryMarkEventProcessed("evt_6")).thenReturn(true);
+        when(processedEventRepository.recordIfNew("evt_6")).thenReturn(true);
         when(sessionRepository.findByPaymentIntentId(paymentIntentId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> handlePaymentEvent.execute(event("evt_6", StripeWebhookEventType.PAYMENT_SUCCEEDED)))
+        assertThatThrownBy(() -> handlePaymentEvent.execute(event("evt_6", PaymentEventType.PAYMENT_SUCCEEDED)))
                 .isInstanceOf(SessionNotFoundException.class);
     }
 
-    private StripeWebhookEvent event(String eventId, StripeWebhookEventType type) {
-        return new StripeWebhookEvent(eventId, type, paymentIntentId);
+    private PaymentEvent event(String eventId, PaymentEventType type) {
+        return new PaymentEvent(eventId, type, paymentIntentId);
     }
 }

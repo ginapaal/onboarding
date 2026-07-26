@@ -1,8 +1,8 @@
 package com.example.onboarding.infrastructure.web;
 
-import com.example.onboarding.domain.model.StripePaymentIntentId;
-import com.example.onboarding.domain.model.StripeWebhookEvent;
-import com.example.onboarding.domain.model.StripeWebhookEventType;
+import com.example.onboarding.domain.model.PaymentEvent;
+import com.example.onboarding.domain.model.PaymentEventType;
+import com.example.onboarding.domain.model.PaymentIntentId;
 import com.example.onboarding.domain.port.inbound.HandlePaymentEventUseCase;
 import com.example.onboarding.infrastructure.web.port.StripeWebhookPort;
 import com.stripe.exception.EventDataObjectDeserializationException;
@@ -16,11 +16,20 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
 @RestController
 public class StripeWebhookController implements StripeWebhookPort {
+
+    private static final Map<String, PaymentEventType> STRIPE_EVENT_TYPES = Map.of(
+            "payment_intent.succeeded",       PaymentEventType.PAYMENT_SUCCEEDED,
+            "payment_intent.payment_failed",  PaymentEventType.PAYMENT_FAILED,
+            "payment_intent.processing",      PaymentEventType.PAYMENT_PROCESSING,
+            "payment_intent.canceled",        PaymentEventType.PAYMENT_CANCELED,
+            "payment_intent.requires_action", PaymentEventType.ACTION_REQUIRED
+    );
 
     private final HandlePaymentEventUseCase handlePaymentEvent;
     private final String webhookSecret;
@@ -43,7 +52,7 @@ public class StripeWebhookController implements StripeWebhookPort {
             return ResponseEntity.badRequest().build();
         }
 
-        Optional<StripeWebhookEventType> eventType = StripeWebhookEventType.fromStripeType(stripeEvent.getType());
+        Optional<PaymentEventType> eventType = Optional.ofNullable(STRIPE_EVENT_TYPES.get(stripeEvent.getType()));
         if (eventType.isEmpty()) {
             log.debug("Ignoring unhandled Stripe event type: {}", stripeEvent.getType());
             return ResponseEntity.ok().build();
@@ -62,10 +71,10 @@ public class StripeWebhookController implements StripeWebhookPort {
             return ResponseEntity.internalServerError().build();
         }
 
-        handlePaymentEvent.execute(new StripeWebhookEvent(
+        handlePaymentEvent.execute(new PaymentEvent(
                 stripeEvent.getId(),
                 eventType.get(),
-                new StripePaymentIntentId(paymentIntent.getId())
+                new PaymentIntentId(paymentIntent.getId())
         ));
 
         return ResponseEntity.ok().build();

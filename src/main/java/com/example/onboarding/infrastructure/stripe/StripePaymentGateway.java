@@ -8,7 +8,7 @@ import com.example.onboarding.domain.model.CustomerReference;
 import com.example.onboarding.domain.model.Money;
 import com.example.onboarding.domain.model.OnboardingSessionId;
 import com.example.onboarding.domain.model.PaymentIntentResult;
-import com.example.onboarding.domain.model.StripePaymentIntentId;
+import com.example.onboarding.domain.model.PaymentIntentId;
 import com.example.onboarding.domain.port.outbound.PaymentGateway;
 import com.stripe.exception.ApiConnectionException;
 import com.stripe.exception.RateLimitException;
@@ -46,7 +46,7 @@ public class StripePaymentGateway implements PaymentGateway {
                     getIdempotencyOptions("pi-" + sessionId.value())
             );
             return new PaymentIntentResult(
-                    new StripePaymentIntentId(paymentIntent.getId()),
+                    new PaymentIntentId(paymentIntent.getId()),
                     paymentIntent.getClientSecret()
             );
         } catch (StripeException e) {

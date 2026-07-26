@@ -1,7 +1,7 @@
 package com.example.onboarding.infrastructure.web;
 
-import com.example.onboarding.domain.model.StripeWebhookEvent;
-import com.example.onboarding.domain.model.StripeWebhookEventType;
+import com.example.onboarding.domain.model.PaymentEvent;
+import com.example.onboarding.domain.model.PaymentEventType;
 import com.example.onboarding.domain.port.inbound.HandlePaymentEventUseCase;
 import com.stripe.exception.EventDataObjectDeserializationException;
 import com.stripe.exception.SignatureVerificationException;
@@ -83,8 +83,8 @@ class StripeWebhookControllerTest {
             ResponseEntity<Void> response = controller.handleWebhook(PAYLOAD, SIGNATURE);
 
             assertThat(response.getStatusCode().value()).isEqualTo(200);
-            verify(handlePaymentEvent).execute(argThat((StripeWebhookEvent e) ->
-                    e.type() == StripeWebhookEventType.PAYMENT_SUCCEEDED &&
+            verify(handlePaymentEvent).execute(argThat((PaymentEvent e) ->
+                    e.type() == PaymentEventType.PAYMENT_SUCCEEDED &&
                     e.paymentIntentId().value().equals("pi_test123")));
         }
     }

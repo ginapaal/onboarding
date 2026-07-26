@@ -11,7 +11,7 @@ import com.example.onboarding.domain.model.Money;
 import com.example.onboarding.domain.model.OnboardingSession;
 import com.example.onboarding.domain.model.PaymentIntentResult;
 import com.example.onboarding.domain.model.OnboardingSessionId;
-import com.example.onboarding.domain.model.StripePaymentIntentId;
+import com.example.onboarding.domain.model.PaymentIntentId;
 import com.example.onboarding.domain.model.InitiatePaymentResult;
 import com.example.onboarding.domain.port.outbound.CompanyRepository;
 import com.example.onboarding.domain.port.outbound.PaymentGateway;
@@ -61,7 +61,7 @@ class InitiatePaymentTest {
         company = Company.register(companyId, "Acme Corp", new ContactInfo("admin@acme.com", "Jane", "Doe"));
         usdPrice = new Money(9900, Currency.getInstance("USD"));
         customer = new CustomerReference("cus_test123");
-        paymentIntent = new PaymentIntentResult(new StripePaymentIntentId("pi_test123"), "pi_test123_secret");
+        paymentIntent = new PaymentIntentResult(new PaymentIntentId("pi_test123"), "pi_test123_secret");
     }
 
     @Test
@@ -135,7 +135,7 @@ class InitiatePaymentTest {
         initiatePayment.execute(sessionId, "US");
 
         assertThat(company.getStatus()).isEqualTo(CompanyStatus.PENDING_ACTIVATION);
-        assertThat(session.getPaymentIntentId()).isEqualTo(new StripePaymentIntentId("pi_test123"));
+        assertThat(session.getPaymentIntentId()).isEqualTo(new PaymentIntentId("pi_test123"));
         verify(sessionRepository).update(session);
         verify(companyRepository).update(company);
     }
