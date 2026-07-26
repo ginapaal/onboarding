@@ -2,10 +2,9 @@
 
 ## Problem Statement
 
-> As a company admin, I need to sign up, enter my business and billing details, and complete
-> payment so that my account is activated immediately on success, held in a pending state during
-> async confirmation (3DS), and can recover safely from payment failures without losing my
-> registration data.
+> As a company admin, I need to register my company and complete a subscription payment,
+> so that my account activates immediately on success, remains accessible while awaiting
+> async payment confirmation, and lets me retry a declined payment without having to start over.
 
 ---
 
@@ -65,7 +64,6 @@ flowchart LR
     subgraph domainLayer["Domain Layer"]
         CompanyAggregate["Company<br>(aggregate)"]
         SessionDomain["OnboardingSession"]
-        AdminUserDomain["AdminUser"]
         ValueObjects["Value Objects"]
         DomainEvents["Domain Events"]
         StateMachine["State Machine"]
@@ -220,7 +218,9 @@ controller imports only from `domain.port.inbound` — the same way infrastructu
 only from `domain.port.outbound`. The `@PostMapping` handlers call the use case interfaces
 directly; there is no delegation layer.
 
-The single-entry-point discipline is additionally enforced by an ArchUnit test:
+Each use case exposes exactly one public method — `execute` — so a caller never has to decide which method to invoke, and the use case stays focused on a single operation.
+
+This single-entry-point discipline is additionally enforced by an ArchUnit test:
 
 ```java
 // Every @Service in the application layer may only have one public method, named execute.
@@ -238,7 +238,7 @@ This makes the convention a failing build rather than a code review comment.
 ```
 com.example.onboarding
 ├── domain
-│   ├── model          (Company, AdminUser, OnboardingSession, value objects)
+│   ├── model          (Company, OnboardingSession, value objects)
 │   ├── event          (CompanyRegistered, PaymentSucceeded, …)
 │   └── port           (PaymentGateway, CompanyRepository, SessionRepository)
 ├── application
@@ -262,7 +262,7 @@ The dependency rule is strictly enforced: `infrastructure` depends on `applicati
 **`Company`** — aggregate root. Owns the registration and payment lifecycle. Enforces state
 transition invariants by throwing a domain exception on illegal transitions (e.g. calling
 `paymentSucceeded()` on an already-active company). Tracks a `retryCount` against a
-`MAX_RETRIES` constant — when exhausted, `retryPayment()` throws `MaxRetriesExceededException`
+`MAX_ATTEMPTS` constant — when exhausted, `retryPayment()` throws `MaxRetriesExceededException`
 and the use case calls `escalateToSupport()`, transitioning the company to `REQUIRES_SUPPORT`.
 
 **`OnboardingSession`** — separate aggregate, referenced by `CompanyId`. Tracks a single
@@ -271,8 +271,7 @@ and timestamps. Keeping it separate means:
 - Payment retry creates a new `OnboardingSession` without mutating `Company` history.
 - The payment lifecycle is independently evolvable (future: multiple attempts, audit trail).
 
-**`AdminUser`** — entity inside the `Company` aggregate for this slice. Always accessed through
-Company; has no independent lifecycle at this stage.
+The admin's identity is captured as a `ContactInfo` value object (email, first name, last name) directly on `Company` — there is no separate `AdminUser` entity in this slice.
 
 ### Value Objects
 
@@ -282,46 +281,15 @@ signatures.
 | Value Object | Wraps | Why |
 |---|---|---|
 | `CompanyId` | `UUID` | Prevents passing wrong ID type across use case boundaries |
-| `AdminUserId` | `UUID` | Same |
-| `SessionId` | `UUID` | Same |
-| `StripeCustomerId` | `String` | Anti-corruption; Stripe internals stay in infrastructure |
-| `StripePaymentIntentId` | `String` | Same |
-| `Money` | `long` (cents) + `Currency` | Prevents float arithmetic errors; makes currency explicit |
-| `BusinessDetails` | name, domain, size | Groups related fields; validated as a unit |
-| `ContactInfo` | email, firstName, lastName | Same |
+| `OnboardingSessionId` | `UUID` | Same |
+| `CustomerReference` | `String` | Anti-corruption; Stripe internals stay in infrastructure |
+| `PaymentIntentId` | `String` | Same |
+| `Money` | `long` (minor units) + `Currency` | Prevents float arithmetic errors; makes currency explicit |
+| `ContactInfo` | email, firstName, lastName | Groups related fields; validated as a unit |
 
 ### Domain Events
 
-Published by the aggregate root after a successful state transition.
-
-| Event | Trigger |
-|---|---|
-| `CompanyRegistered` | `Company` created |
-| `PaymentInitiated` | PaymentIntent created, Company → PENDING_ACTIVATION |
-| `PaymentSucceeded` | Stripe webhook received, Company → ACTIVE |
-| `PaymentFailed` | Stripe webhook received, Company → ACTIVATION_FAILED |
-| `ActionRequired` | Stripe webhook received, Company → ACTION_REQUIRED |
-| `MaxRetriesExceeded` | `retryPayment()` called at retry limit, Company → REQUIRES_SUPPORT |
-
-**Transport decision:** In-process Spring `ApplicationEventPublisher` for this slice.
-
-*Known limitation:* If the application crashes after the database write but before the event
-is published, the event is lost. The correct fix is the **Transactional Outbox** pattern.
-
-**How it works:** instead of publishing the event directly, you write it to an `outbox_events`
-table in the *same database transaction* as the domain write. A separate poller then reads
-unpublished rows and forwards them to the message bus (e.g. Kafka). Because the event row is
-committed atomically with the domain change, a crash can never produce a saved Company without
-a corresponding event — the poller will always find and publish it on recovery.
-
-**Benefits:** guaranteed at-least-once delivery; decouples the domain write from the message
-bus; pairs naturally with Kafka for cross-service event consumers.
-
-**Tradeoffs:** adds an `outbox_events` table and a poller component; since the poller may
-publish an event and crash before marking it as sent, consumers must be idempotent (the same
-event may arrive more than once).
-
-This is called out as a named tradeoff — not implemented here for scope reasons.
+Not implemented in this slice. The natural consumer would be a notification service — for example, emailing the company admin if their payment fails, if manual action is required, or if they have exhausted their retry attempts. Without a notification service there is nothing to publish to, so events are out of scope for the MVP.
 
 ---
 
@@ -343,8 +311,8 @@ stateDiagram-v2
    ACTION_REQUIRED --> ACTIVE: paymentSucceeded()
    ACTION_REQUIRED --> ACTIVATION_FAILED: paymentFailed()
 
-   ACTIVATION_FAILED --> PENDING_ACTIVATION: retryPayment() [retries < MAX_RETRIES]
-   ACTIVATION_FAILED --> REQUIRES_SUPPORT: escalateToSupport() [retries >= MAX_RETRIES]
+   ACTIVATION_FAILED --> PENDING_ACTIVATION: retryPayment() [retries < MAX_ATTEMPTS]
+   ACTIVATION_FAILED --> REQUIRES_SUPPORT: escalateToSupport() [retries >= MAX_ATTEMPTS]
 
    classDef incomplete fill:#fef2f2,stroke:#f87171
    classDef pending fill:#fff7ed,stroke:#fb923c
@@ -377,9 +345,11 @@ seeded by Flyway. The client supplies `ipCountry` (ISO 3166-1 alpha-2) in the pa
 initiation request; the server looks up the matching row and uses that `Money` value when
 creating the Stripe PaymentIntent.
 
-A `DEFAULT` row acts as a fallback for any country not explicitly listed. When the fallback
+If the country code is not found in the table, the use case falls back to the `US` row. When the fallback
 is used, a `pricingWarning` is returned in the response so the frontend can surface a message
 such as: *"Could not determine pricing for your region. Defaulting to USD."*
+
+A fallback means we are missing a pricing entry for that country. In production, the fallback should fire a tagged metric to Prometheus — e.g. `pricing_fallback_total{country="JP"}` — so Grafana can surface which countries are triggering it and how often. This makes a data gap visible before it becomes a support or revenue problem.
 
 ### Why client-supplied `ipCountry` rather than server-side derivation?
 
@@ -440,17 +410,14 @@ this a one-implementation swap.
 
 ## Scalability
 
-Writing to multiple tables per onboarding flow (companies, admin_users, onboarding_sessions,
-outbox_events) is not a concern — these are a single database transaction, completing in
-milliseconds, with no shared locks between independent company flows. Concurrent registrations
-do not block each other.
+Writing to multiple tables per onboarding flow (`companies`, `onboarding_sessions`, `processed_stripe_events`) is not a concern — these are a single database transaction, completing in milliseconds, with no shared locks between independent company flows. Concurrent registrations do not block each other.
 
 The real pressure points at high volume, and how to address them:
 
 | Bottleneck | Why it matters | Solution |
 |---|---|---|
 | Database connections | HikariCP defaults to 10 connections; requests queue under load | Tune pool size; add PgBouncer to multiplex app connections into fewer real DB connections |
-| Stripe rate limits | Stripe enforces per-key rate limits; high registration volume triggers 429s | Retry with exponential backoff in `StripePaymentGateway`; queue payment initiations if needed |
+| Stripe rate limits | Stripe enforces per-key rate limits; high registration volume triggers 429s | Add retry with exponential backoff to `StripePaymentGateway`; queue payment initiations if needed |
 | Webhook throughput | Simultaneous payments fire simultaneous webhooks | Service is stateless — scale horizontally; DB-based idempotency guard is correct across all instances with no extra coordination |
 | Status polling | Every waiting frontend polling `GET /{sessionId}/status` adds read traffic | Add a read replica for status queries; or replace polling with SSE or WebSocket to push status changes |
 
@@ -498,8 +465,8 @@ owned by the onboarding service.
 
 ### Built
 
-- Domain model: `Company`, `AdminUser`, `OnboardingSession`, value objects, state machine
-- Use cases: `RegisterCompanyUseCase`, `InitiatePaymentUseCase`, `HandlePaymentEventUseCase`
+- Domain model: `Company`, `OnboardingSession`, value objects, state machine
+- Use cases: `RegisterCompanyUseCase`, `InitiatePaymentUseCase`, `HandlePaymentEventUseCase`, `RetryPaymentUseCase`, `GetOnboardingStatusUseCase`
 - Stripe adapter: customer creation, PaymentIntent creation, webhook event construction
 - Webhook handler: signature verification, idempotency via `processed_stripe_events` table
 - REST API: register, initiate payment, poll status, webhook receiver
@@ -512,23 +479,20 @@ owned by the onboarding service.
 |---|---|---|
 | Frontend / Stripe.js | Out of scope for backend slice | React or plain JS with `@stripe/stripe-js` confirming the PaymentIntent |
 | Auth / JWT | Out of scope for MVP. The payment and status endpoints need bearer token protection once built. See Security section. | JWT issued by a dedicated identity service; Spring Security OAuth2 resource server to validate on payment and status endpoints |
-| Transactional Outbox | Adds infrastructure complexity (outbox table + poller) not justified without real event consumers | Scheduled poller or Debezium CDC on `outbox_events` publishing to Kafka |
-| Email notifications | Infrastructure concern, not domain | Spring Mail or SendGrid on `CompanyActivated` event |
 | Rate limiting | Ops concern | Bucket4j or API gateway |
-| Payment retry UX | Depends on product decisions not yet made | New `OnboardingSession` per attempt; frontend polls status |
+| Payment retry UX | Backend fully implemented (`RetryPaymentUseCase`, `POST /{sessionId}/payments/retry`); frontend integration not built | Frontend retries by calling the retry endpoint with the new `sessionId` and confirming the new PaymentIntent via Stripe.js |
 
 ---
 
 ## Key Tradeoffs
 
-| Decision | Chosen | Alternative | Why |
-|---|---|---|---|
+| Decision | Chosen | Alternative           | Why |
+|---|---|-----------------------|---|
 | `OnboardingSession` as separate aggregate | Yes | Entity inside Company | Independent evolvability; retry creates new session without mutating Company history |
-| Hexagonal architecture | Yes | Classic layered | Domain has zero framework deps; easier to test; aligns with DDD |
-| Typed value objects | Yes | Raw `String`/`UUID` | Compile-time safety across use case boundaries |
-| In-process domain events | Yes | Outbox pattern | Simpler for this scope; limitation is named explicitly |
+| Hexagonal architecture | Yes | Classic layered       | Domain has zero framework deps; easier to test; aligns with DDD |
+| Typed value objects | Yes | Raw `String`/`UUID`   | Compile-time safety across use case boundaries |
 | Idempotency via DB table | Yes | In-memory set | Survives restarts; correct under concurrent webhook delivery |
-| Stripe real test mode | Yes | Mock | Demonstrates real contract understanding; webhook signature verification is non-trivial |
+| Stripe real test mode | Yes | Fake/stub `PaymentGateway` implementation | Demonstrates real contract understanding; webhook signature verification is non-trivial |
 
 ---
 
@@ -555,3 +519,7 @@ AI named the `Company` status states `PENDING_PAYMENT` and `PAYMENT_FAILED`. The
 **3. Price field naming — `amountInCents` is currency-specific**
 
 AI generated `amountInCents` for the `Money` value object. This is incorrect: "cents" is not the minor unit of every currency — JPY has no minor unit, KWD uses three decimal places. The correct ISO 4217 term is `amountInMinorUnits`. Accepting this without checking would have baked an inaccurate assumption into the domain model.
+
+**4. REST endpoint design — initial paths were not RESTful**
+
+AI initially proposed unversioned, action-oriented paths (`/api/onboarding/register`, `/api/onboarding/{sessionId}/retry`). After discussion these were revised to resource-oriented, versioned paths (`/api/v1/onboarding/companies/register`, `/api/v1/onboarding/{sessionId}/payments/retry`). The versioning adds a clear upgrade path; the resource-oriented naming aligns with REST conventions and makes the API surface easier to reason about.

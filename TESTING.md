@@ -164,7 +164,7 @@ curl -s https://onboarding-production-e40a.up.railway.app/api/v1/onboarding/$SES
 The service allows a maximum of **3 payment attempts** per company.
 
 Repeat steps 1–5 of Flow 2 three times (reusing the same initial registration each time,
-updating `SESSION_ID` and `PI_ID` after each retry). On the 3rd retry call the service
+updating `SESSION_ID` and `PI_ID` after each retry, as new OnboardingSession is created on every try). On the 3rd attempt the service
 returns HTTP 422:
 
 ```json

@@ -105,11 +105,11 @@ full resource at the time the event was created.
 ```json
 {
   "id": "evt_1Pabc123",             ← stored in processed_stripe_events for idempotency
-  "type": "payment_intent.succeeded | payment_intent.payment_failed | payment_intent.requires_action",
+  "type": "payment_intent.succeeded | payment_intent.payment_failed | payment_intent.processing | payment_intent.canceled | payment_intent.requires_action",
   "data": {
     "object": {
       "id": "pi_3Pxyz",             ← used to look up OnboardingSession
-      "status": "succeeded | requires_action | canceled",
+      "status": "succeeded | processing | requires_action | canceled",
       "last_payment_error": {       ← present on payment_intent.payment_failed only
         "code": "card_declined",
         "message": "Your card was declined."
@@ -123,6 +123,8 @@ full resource at the time the event was created.
 |---|---|---|
 | `payment_intent.succeeded` | → `ACTIVE` | Payment confirmed |
 | `payment_intent.payment_failed` | → `ACTIVATION_FAILED` | Card declined or other failure |
+| `payment_intent.processing` | → `ACTIVATION_PROCESSING` | Payment received, async confirmation pending |
+| `payment_intent.canceled` | → `ACTIVATION_CANCELED` | Payment canceled |
 | `payment_intent.requires_action` | → `ACTION_REQUIRED` | 3DS or redirect required |
 
 ---
@@ -134,18 +136,24 @@ Stripe ──POST──► /webhooks/stripe
                      │
                verify signature         ← Webhook.constructEvent(rawBody, sigHeader, webhookSecret)
                      │                    raw bytes required — do not let Spring deserialize first
-               check processed_stripe_events
-                     │                  ← idempotency guard: same event ID = return 200 immediately
+               filter event type
+                     │                  ← type not in STRIPE_EVENT_TYPES map → return 200 immediately
+                     │                    (200 prevents Stripe from retrying an event we'll never handle)
+                     │                    TODO: fire unhandled_stripe_event_total{type=...} metric —
+                     │                    especially valuable for payment_intent.* types, which could
+                     │                    indicate a new Stripe event type we should be handling
                HandlePaymentEventUseCase (@Transactional)
                      │
+               recordIfNew(eventId)     ← idempotency guard: duplicate event ID → return 200 immediately
+                     │                    atomic INSERT ON CONFLICT DO NOTHING
                load OnboardingSession by paymentIntentId
                      │
                load Company by companyId
                      │
                transition Company status
                      │
-               update Company + insert into processed_stripe_events
-               (same transaction — atomic)
+               update Company
+               (transaction commits — recordIfNew insert + company update are atomic)
 ```
 
 Signature verification uses `Stripe.constructEvent(rawBody, sigHeader, webhookSecret)`.
@@ -225,6 +233,11 @@ sessionRepository.update() ──► NOT reached — DB has no record of the Pay
 
 **Mitigation:** idempotency keys. On restart and retry, Stripe returns the existing
 PaymentIntent rather than creating a new one, so the second attempt completes correctly.
+
+Note: this is a different concern from the `processed_stripe_events` table. Idempotency
+keys protect against duplicate Stripe resource creation on *outbound* retries from this
+service. `processed_stripe_events` protects against duplicate processing of *inbound*
+webhook deliveries from Stripe. Both are needed; neither substitutes for the other.
 
 **Full fix (not implemented):** Transactional Outbox — write the Stripe intent to an
 `outbox_events` table in the same DB transaction as the domain write, then have a

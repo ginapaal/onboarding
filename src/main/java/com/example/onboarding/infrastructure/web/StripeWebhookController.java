@@ -54,6 +54,7 @@ public class StripeWebhookController implements StripeWebhookPort {
 
         Optional<PaymentEventType> eventType = Optional.ofNullable(STRIPE_EVENT_TYPES.get(stripeEvent.getType()));
         if (eventType.isEmpty()) {
+            // TODO: fire unhandled_stripe_event_total{type=stripeEvent.getType()} metric — payment_intent.* gaps here could indicate a new Stripe event type we should be handling
             log.debug("Ignoring unhandled Stripe event type: {}", stripeEvent.getType());
             return ResponseEntity.ok().build();
         }

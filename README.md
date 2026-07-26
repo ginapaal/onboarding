@@ -2,10 +2,11 @@
 
 Self-serve business onboarding with Stripe payment integration.
 
-> As a company admin, I need to sign up, enter my business and billing details, and complete
-> payment so that my account is activated immediately on success, held in a pending state during
-> async confirmation (3DS), and can recover safely from payment failures without losing my
-> registration data.
+> As a company admin, I need to register my company and complete a subscription payment,
+> so that my account activates immediately on success, remains accessible while awaiting
+> async payment confirmation, and lets me retry a declined payment without having to start over.
+
+> **Note:** The service is deployed to [Railway](https://railway.app). For testing instructions, see [TESTING.md](./TESTING.md).
 
 ## Prerequisites
 
@@ -115,7 +116,7 @@ https://<your-railway-url>/webhooks/stripe
 ```
 
 Subscribe to the events: `payment_intent.succeeded`, `payment_intent.payment_failed`,
-`payment_intent.requires_action`.
+`payment_intent.processing`, `payment_intent.canceled`, `payment_intent.requires_action`.
 
 Copy the signing secret Railway surfaces after saving and set it as `STRIPE_WEBHOOK_SECRET`.
 The Stripe CLI (`stripe listen`) is only needed for local development.
@@ -132,4 +133,4 @@ Railway redeploys automatically on every push to the connected branch — no man
 ./mvnw test
 ```
 
-Tests use an H2 in-memory database and a mocked Stripe gateway — no real Stripe calls are made.
+Persistence tests run against a real PostgreSQL instance via Testcontainers (Docker required). Use case tests mock the gateway interfaces — no real Stripe calls are made.
