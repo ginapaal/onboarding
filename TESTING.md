@@ -30,10 +30,10 @@ Ask the team for the test key if you don't have it.
 curl -s -X POST https://onboarding-production-e40a.up.railway.app/api/v1/onboarding/companies/register \
   -H "Content-Type: application/json" \
   -d '{
-    "companyName": "Acme Corp",
-    "adminEmail": "admin@acme.com",
-    "adminFirstName": "Jane",
-    "adminLastName": "Doe"
+    "companyName": "Hiya",
+    "adminEmail": "admin@hiya.com",
+    "adminFirstName": "Admin",
+    "adminLastName": "Test"
   }'
 ```
 
