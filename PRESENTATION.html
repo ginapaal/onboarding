@@ -385,9 +385,9 @@ interface PaymentGateway {
       <div class="tc-alt">Alt: JPA · less boilerplate, but fights DDD at aggregate edges</div>
     </div>
     <div class="tc">
-      <div class="tc-label">Domain events — designed, not built</div>
-      <div>Event classes and listeners are out of scope — no consumers exist yet to justify them</div>
-      <div class="tc-alt">Production: in-process publisher + Transactional Outbox for guaranteed delivery</div>
+      <div class="tc-label">Domain events — not implemented</div>
+      <div>No consumers exist yet — the natural first consumer would be a notification service (e.g. alert the admin on payment failure or retry exhaustion)</div>
+      <div class="tc-alt">Once consumers exist: Transactional Outbox for guaranteed delivery</div>
     </div>
     <div class="tc">
       <div class="tc-label">Client-supplied <code>ipCountry</code></div>
@@ -434,9 +434,7 @@ interface PaymentGateway {
       <div class="scope-list">
         <div class="skipped">Frontend / Stripe.js — UI decisions not made yet</div>
         <div class="skipped">Auth / JWT — out of scope for MVP; payment &amp; status endpoints need bearer token protection once built</div>
-        <div class="skipped">Domain events — designed in, not implemented; no consumers exist yet</div>
-        <div class="skipped">Transactional Outbox — depends on domain events; would be the production delivery mechanism</div>
-        <div class="skipped">Email notifications — infrastructure concern, not domain</div>
+        <div class="skipped">Domain events — not implemented; no consumers exist yet. First candidate: notification service for payment failures and retry exhaustion</div>
         <div class="skipped">Rate limiting — ops concern, add at gateway layer</div>
       </div>
     </div>
