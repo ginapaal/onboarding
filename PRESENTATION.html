@@ -445,10 +445,10 @@ interface PaymentGateway {
   </p>
 
   <aside class="notes">
-    The hardest scope call was auth. Onboarding is a pre-auth flow — the user doesn't have an identity yet,
-    so issuing a JWT on registration would be the wrong design. Auth belongs to a separate bounded context.
-    The payment and status endpoints are protected by the unguessability of the sessionId UUID for now,
-    and the design doc notes exactly which endpoints need bearer tokens once the auth slice is built.
+    Auth was a conscious MVP cut, not an architectural one. After registration the user has an identity —
+    the payment and status endpoints should require a bearer token in production. That work just wasn't
+    in scope here. For now the sessionId UUID provides implicit protection against enumeration, and the
+    design doc notes exactly which endpoints need bearer tokens once the auth slice is built.
   </aside>
 </section>
 

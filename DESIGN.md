@@ -432,15 +432,16 @@ The real pressure points at high volume, and how to address them:
 
 ### Current posture
 
-All onboarding endpoints are intentionally public in this slice. This is by design, not an
-oversight: the user has no prior identity when they arrive — they are registering for the first
-time. There is nothing to authenticate against.
+All onboarding endpoints are public in this slice. Auth was a conscious MVP cut — not an
+architectural decision. The `/register` endpoint is genuinely pre-auth (the user has no account
+yet), but `/payments` and `/status` should require a bearer token in production once the auth
+slice is built.
 
 | Endpoint | Auth | Reason |
 |---|---|---|
 | `POST /api/v1/onboarding/companies/register` | None | User does not exist yet |
-| `POST /api/v1/onboarding/{sessionId}/payments` | None (sessionId is unguessable) | No identity established yet |
-| `GET /api/v1/onboarding/{sessionId}/status` | None (sessionId is unguessable) | Same |
+| `POST /api/v1/onboarding/{sessionId}/payments` | None (sessionId is unguessable) | MVP cut — bearer token required in production |
+| `GET /api/v1/onboarding/{sessionId}/status` | None (sessionId is unguessable) | MVP cut — bearer token required in production |
 | `POST /webhooks/stripe` | Stripe signature verification | Handled by `Stripe-Signature` header, not user auth |
 
 The `sessionId` is a UUID v4, which provides implicit protection against enumeration — but it
