@@ -2,11 +2,10 @@ package com.example.onboarding.application.usecase;
 
 import com.example.onboarding.domain.exception.CompanyNotFoundException;
 import com.example.onboarding.domain.exception.SessionNotFoundException;
-import com.example.onboarding.domain.model.Company;
-import com.example.onboarding.domain.model.OnboardingSession;
-import com.example.onboarding.domain.model.PaymentEvent;
+import com.example.onboarding.domain.model.*;
 import com.example.onboarding.domain.port.inbound.HandlePaymentEventUseCase;
 import com.example.onboarding.domain.port.outbound.CompanyRepository;
+import com.example.onboarding.domain.port.outbound.NotificationOutboxRepository;
 import com.example.onboarding.domain.port.outbound.OnboardingSessionRepository;
 import com.example.onboarding.domain.port.outbound.ProcessedStripeEventRepository;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +19,7 @@ public class HandlePaymentEvent implements HandlePaymentEventUseCase {
     private final OnboardingSessionRepository sessionRepository;
     private final CompanyRepository companyRepository;
     private final ProcessedStripeEventRepository processedEventRepository;
+    private final NotificationOutboxRepository notificationOutboxRepository;
 
     @Override
     @Transactional
@@ -43,5 +43,9 @@ public class HandlePaymentEvent implements HandlePaymentEventUseCase {
         }
 
         companyRepository.update(company);
+        if (event.type() == PaymentEventType.PAYMENT_SUCCEEDED) {
+            ContactInfo adminContactInfo = company.getAdminContact();
+            notificationOutboxRepository.saveOutboxEvent(new NotificationOutboxMessage(null, company.getId(), adminContactInfo.email(), adminContactInfo.firstName(), adminContactInfo.lastName(), NotificationType.ACTIVATED, ChannelType.EMAIL, false));
+        }
     }
 }

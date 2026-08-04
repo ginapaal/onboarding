@@ -1,21 +1,26 @@
 package com.example.onboarding.application.usecase;
 
 import com.example.onboarding.domain.exception.SessionNotFoundException;
+import com.example.onboarding.domain.model.ChannelType;
 import com.example.onboarding.domain.model.Company;
 import com.example.onboarding.domain.model.CompanyId;
 import com.example.onboarding.domain.model.CompanyStatus;
 import com.example.onboarding.domain.model.ContactInfo;
+import com.example.onboarding.domain.model.NotificationOutboxMessage;
+import com.example.onboarding.domain.model.NotificationType;
 import com.example.onboarding.domain.model.OnboardingSession;
 import com.example.onboarding.domain.model.OnboardingSessionId;
-import com.example.onboarding.domain.model.PaymentIntentId;
 import com.example.onboarding.domain.model.PaymentEvent;
 import com.example.onboarding.domain.model.PaymentEventType;
+import com.example.onboarding.domain.model.PaymentIntentId;
 import com.example.onboarding.domain.port.outbound.CompanyRepository;
+import com.example.onboarding.domain.port.outbound.NotificationOutboxRepository;
 import com.example.onboarding.domain.port.outbound.OnboardingSessionRepository;
 import com.example.onboarding.domain.port.outbound.ProcessedStripeEventRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -35,6 +40,7 @@ class HandlePaymentEventTest {
     @Mock private OnboardingSessionRepository sessionRepository;
     @Mock private CompanyRepository companyRepository;
     @Mock private ProcessedStripeEventRepository processedEventRepository;
+    @Mock private NotificationOutboxRepository notificationOutboxRepository;
 
     @InjectMocks
     private HandlePaymentEvent handlePaymentEvent;
@@ -125,6 +131,31 @@ class HandlePaymentEventTest {
 
         assertThatThrownBy(() -> handlePaymentEvent.execute(event("evt_6", PaymentEventType.PAYMENT_SUCCEEDED)))
                 .isInstanceOf(SessionNotFoundException.class);
+    }
+
+    @Test
+    void execute_paymentSucceeded_savesActivatedOutboxEvent() {
+        when(processedEventRepository.recordIfNew("evt_7")).thenReturn(true);
+
+        handlePaymentEvent.execute(event("evt_7", PaymentEventType.PAYMENT_SUCCEEDED));
+
+        ArgumentCaptor<NotificationOutboxMessage> captor = ArgumentCaptor.forClass(NotificationOutboxMessage.class);
+        verify(notificationOutboxRepository).saveOutboxEvent(captor.capture());
+
+        NotificationOutboxMessage outbox = captor.getValue();
+        assertThat(outbox.adminEmail()).isEqualTo("admin@acme.com");
+        assertThat(outbox.notificationType()).isEqualTo(NotificationType.ACTIVATED);
+        assertThat(outbox.type()).isEqualTo(ChannelType.EMAIL);
+        assertThat(outbox.processed()).isFalse();
+    }
+
+    @Test
+    void execute_paymentFailed_doesNotSaveOutboxEvent() {
+        when(processedEventRepository.recordIfNew("evt_8")).thenReturn(true);
+
+        handlePaymentEvent.execute(event("evt_8", PaymentEventType.PAYMENT_FAILED));
+
+        verify(notificationOutboxRepository, never()).saveOutboxEvent(org.mockito.ArgumentMatchers.any());
     }
 
     private PaymentEvent event(String eventId, PaymentEventType type) {

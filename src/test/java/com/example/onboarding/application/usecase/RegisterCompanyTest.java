@@ -1,10 +1,14 @@
 package com.example.onboarding.application.usecase;
 
+import com.example.onboarding.domain.model.ChannelType;
 import com.example.onboarding.domain.model.Company;
 import com.example.onboarding.domain.model.ContactInfo;
+import com.example.onboarding.domain.model.NotificationOutboxMessage;
+import com.example.onboarding.domain.model.NotificationType;
 import com.example.onboarding.domain.model.OnboardingSession;
 import com.example.onboarding.domain.model.RegistrationResult;
 import com.example.onboarding.domain.port.outbound.CompanyRepository;
+import com.example.onboarding.domain.port.outbound.NotificationOutboxRepository;
 import com.example.onboarding.domain.port.outbound.OnboardingSessionRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +25,7 @@ class RegisterCompanyTest {
 
     @Mock private CompanyRepository companyRepository;
     @Mock private OnboardingSessionRepository sessionRepository;
+    @Mock private NotificationOutboxRepository notificationOutboxRepository;
 
     @InjectMocks
     private RegisterCompany registerCompany;
@@ -57,5 +62,23 @@ class RegisterCompanyTest {
 
         assertThat(result.companyId()).isEqualTo(companyCaptor.getValue().getId());
         assertThat(result.sessionId()).isEqualTo(sessionCaptor.getValue().getId());
+    }
+
+    @Test
+    void execute_savesRegisteredOutboxEvent() {
+        ContactInfo contact = new ContactInfo("admin@acme.com", "Jane", "Doe");
+
+        registerCompany.execute("Acme Corp", contact);
+
+        ArgumentCaptor<NotificationOutboxMessage> captor = ArgumentCaptor.forClass(NotificationOutboxMessage.class);
+        verify(notificationOutboxRepository).saveOutboxEvent(captor.capture());
+
+        NotificationOutboxMessage outbox = captor.getValue();
+        assertThat(outbox.adminEmail()).isEqualTo("admin@acme.com");
+        assertThat(outbox.adminFirstName()).isEqualTo("Jane");
+        assertThat(outbox.adminLastName()).isEqualTo("Doe");
+        assertThat(outbox.notificationType()).isEqualTo(NotificationType.REGISTERED);
+        assertThat(outbox.type()).isEqualTo(ChannelType.EMAIL);
+        assertThat(outbox.processed()).isFalse();
     }
 }
